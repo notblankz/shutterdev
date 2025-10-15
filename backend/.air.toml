@@ -1,0 +1,26 @@
+# .air.toml
+# Corrected and simplified configuration for Air.
+
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # This command tells Go to build the main package located in `./cmd/api`
+  # and output the executable to `./tmp/main.exe` for Windows.
+  cmd = "go build -o ./tmp/main.exe ./cmd/api"
+
+  # The binary to run after building, with the .exe extension for Windows.
+  bin = "./tmp/main.exe"
+
+  # Watch these file extensions for changes.
+  include_ext = ["go", "tpl", "tmpl", "html"]
+
+  # Don't watch these directories.
+  exclude_dir = ["assets", "tmp", "vendor"]
+
+  # Log build errors to this file.
+  log = "build-errors.log"
+
+[misc]
+  # Clean up the `tmp` directory when Air exits.
+  clean_on_exit = true

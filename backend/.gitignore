@@ -1,0 +1,4 @@
+/tmp/
+*.exe
+shutterdev.db
+*.log
