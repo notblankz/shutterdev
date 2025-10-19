@@ -19,7 +19,7 @@ func main() {
 	r.GET("/", func(c *gin.Context) {
 		// Return JSON response
 		c.JSON(http.StatusOK, gin.H{
-			"message": "change check",
+			"message": "databaase working",
 		})
 	})
 
