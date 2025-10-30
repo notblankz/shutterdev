@@ -5,7 +5,7 @@ import "time"
 type Exif struct {
 	ShutterSpeed string `json:"shutterSpeed"`
 	Aperture     string `json:"aperture"`
-	ISO          int    `json:"iso"`
+	ISO          string `json:"iso"`
 }
 
 type Photo struct {

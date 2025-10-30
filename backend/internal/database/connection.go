@@ -22,7 +22,7 @@ func InitDB(filepath string) *sql.DB {
 		"thumbnail_url" TEXT,
 		"aperture" TEXT,
 		"shutter_speed" TEXT,
-		"iso" INTEGER,
+		"iso" TEXT,
 		"created_at" DATETIME
 	);`
 
