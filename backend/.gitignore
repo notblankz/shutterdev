@@ -2,3 +2,4 @@
 *.exe
 shutterdev.db
 *.log
+.env
