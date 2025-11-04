@@ -256,3 +256,14 @@ func GetAllPhotos(db *sql.DB, limit, offset int) ([]models.Photo, error) {
 	return photosSlice, nil
 
 }
+
+func UpdatePhoto(db *sql.DB, photoID int, title, description string) error {
+	updatePhoto := `UPDATE photos SET title = ?, description = ? WHERE id = ?`
+
+	_, err := db.Exec(updatePhoto, title, description, photoID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
