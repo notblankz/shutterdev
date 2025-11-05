@@ -2,26 +2,44 @@ package main
 
 import (
 	"fmt"
-	"net/http"
+	"log"
+	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 
 	"shutterdev/backend/internal/database"
+	"shutterdev/backend/internal/handlers"
+	"shutterdev/backend/internal/services"
 )
 
 func main() {
+
+	envErr := godotenv.Load(".env")
+	if envErr != nil {
+		log.Println("[ERROR] Could not load .env file", envErr)
+	}
+
 	fmt.Println("Starting server...")
 	r := gin.Default()
 
-	db := database.InitDB("shutterdev.db")
-	defer db.Close()
+	DB := database.InitDB("shutterdev.db")
+	defer DB.Close()
 
-	r.GET("/", func(c *gin.Context) {
-		// Return JSON response
-		c.JSON(http.StatusOK, gin.H{
-			"message": "databaase working",
-		})
-	})
+	R2Service, r2Err := services.NewR2Service(
+		os.Getenv("R2_ACCOUNT_ID"),
+		os.Getenv("R2_ACCESS_KEY_ID"),
+		os.Getenv("R2_SECRET_ACCESS_KEY"),
+		os.Getenv("R2_BUCKET_PUBLIC_URL"),
+		os.Getenv("R2_BUCKET_NAME"),
+	)
+	if r2Err != nil {
+		log.Println("[ERROR] Could not initialize R2 Service", r2Err)
+	}
+
+	photoHandler := handlers.NewPhotoHandler(DB, R2Service)
+
+	handlers.RegisterRoutes(r, photoHandler)
 
 	r.Run()
 }

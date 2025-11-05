@@ -64,7 +64,7 @@ func (h *PhotoHandler) GetPhotoByID(c *gin.Context) {
 	c.JSON(http.StatusOK, photo)
 }
 
-// POST /api/photos
+// POST /api/admin/photos
 func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 	photoHeader, err := c.FormFile("image")
 	if err != nil {
@@ -163,7 +163,7 @@ func (h *PhotoHandler) UpdatePhoto(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Photo updated successfully"})
 }
 
-// DELETE /api/photos?id=
+// DELETE /api/admin/photos?id=
 func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 	idStr := c.Query("id")
 	id, err := strconv.Atoi(idStr)
