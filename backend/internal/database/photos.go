@@ -267,3 +267,30 @@ func UpdatePhoto(db *sql.DB, photoID int, title, description string) error {
 
 	return nil
 }
+
+func DeletePhoto(db *sql.DB, photoID int) error {
+	// remove the photoID from the photo_tags table
+	// finally remove the photoID row from photos table
+	// perform all this in a transaction to either delete both or delete none
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	removePhotoTags := `DELETE FROM photo_tags WHERE photo_id = ?`
+	_, photoTagsErr := tx.Exec(removePhotoTags, photoID)
+	if photoTagsErr != nil {
+		return photoTagsErr
+	}
+
+	removePhoto := `DELETE FROM photos WHERE id = ?`
+	_, photoErr := tx.Exec(removePhoto, photoID)
+	if photoErr != nil {
+		return photoErr
+	}
+
+	// tx.Commit() itself returns an error if anything goes wrong
+	// if nothing goes wrong and everything is commited it is nil thats why we return tx.Commit()
+	return tx.Commit()
+}
