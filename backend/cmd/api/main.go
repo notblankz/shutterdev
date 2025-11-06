@@ -23,6 +23,9 @@ func main() {
 	fmt.Println("Starting server...")
 	r := gin.Default()
 
+	r.Static("/public", "./public")
+	r.StaticFile("/", "./public/index.html")
+
 	DB := database.InitDB("shutterdev.db")
 	defer DB.Close()
 

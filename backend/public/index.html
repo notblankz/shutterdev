@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShutterDev API Docs</title>
+    <!-- Link to our new stylesheet -->
+    <link rel="stylesheet" href="/public/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ShutterDev API</h1>
+            <p>API documentation for the ShutterDev photo gallery backend.</p>
+        </header>
+
+        <!-- Public Endpoints -->
+        <div class="endpoint-category">
+            <h2>Public</h2>
+            <p>Publicly accessible endpoints for viewing photos.</p>
+
+            <!-- GET /api/photos -->
+            <div class="endpoint-group">
+                <div class="endpoint-header get">
+                    <span class="method">GET</span>
+                    <code class="path">/api/photos</code>
+                    <span class="summary">Get a paginated list of all photos</span>
+                </div>
+                <div class="endpoint-body">
+                    <h3>Parameters</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>In</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>limit</code></td>
+                                <td>query</td>
+                                <td>The number of photos to return. (Default: 20)</td>
+                            </tr>
+                            <tr>
+                                <td><code>offset</code></td>
+                                <td>query</td>
+                                <td>The number of photos to skip for pagination. (Default: 0)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- GET /api/photos/:id -->
+            <div class="endpoint-group">
+                <div class="endpoint-header get">
+                    <span class="method">GET</span>
+                    <code class="path">/api/photos/:id</code>
+                    <span class="summary">Get a single photo by its ID</span>
+                </div>
+                <div class="endpoint-body">
+                    <h3>Parameters</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>In</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>path</td>
+                                <td>The numeric ID of the photo to retrieve.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Endpoints -->
+        <div class="endpoint-category">
+            <h2>Admin</h2>
+            <p>Protected endpoints for managing photos. Requires <code>Authorization: Bearer &lt;token&gt;</code> header.</p>
+
+            <!-- POST /api/admin/photos -->
+            <div class="endpoint-group">
+                <div class="endpoint-header post">
+                    <span class="method">POST</span>
+                    <code class="path">/api/admin/photos</code>
+                    <span class="summary">Upload a new photo</span>
+                </div>
+                <div class="endpoint-body">
+                    <h3>Request Body (<code>multipart/form-data</code>)</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>image</code></td>
+                                <td>file</td>
+                                <td>The high-resolution image file to upload.</td>
+                            </tr>
+                            <tr>
+                                <td><code>title</code></td>
+                                <td>string</td>
+                                <td>(Optional) The title of the photo.</td>
+                            </tr>
+                            <tr>
+                                <td><code>description</code></td>
+                                <td>string</td>
+                                <td>(Optional) The description of the photo.</td>
+                            </tr>
+                            <tr>
+                                <td><code>tags</code></td>
+                                <td>string</td>
+                                <td>A comma-separated list of tags (e.g., "bengaluru,night,palace").</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- PUT /api/admin/photos/:id -->
+            <div class="endpoint-group">
+                <div class="endpoint-header put">
+                    <span class="method">PUT</span>
+                    <code class="path">/api/admin/photos/:id</code>
+                    <span class="summary">Update a photo's details</span>
+                </div>
+                <div class="endpoint-body">
+                    <h3>Parameters</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>In</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>path</td>
+                                <td>The numeric ID of the photo to update.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <h3>Request Body (<code>application/json</code>)</h3>
+                    <pre><code>{
+    "title": "My New Updated Title",
+    "description": "A new description for this photo."
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- DELETE /api/admin/photos/:id -->
+            <div class="endpoint-group">
+                <div class="endpoint-header delete">
+                    <span class="method">DELETE</span>
+                    <code class="path">/api/admin/photos/:id</code>
+                    <span class="summary">Delete a photo</span>
+                </div>
+                <div class="endpoint-body">
+                    <h3>Parameters</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>In</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>path</td>
+                                <td>The numeric ID of the photo to delete.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simple JavaScript for collapsible endpoints -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.endpoint-header').forEach(header => {
+                header.addEventListener('click', (e) => {
+                    // Don't collapse if clicking on an <a> or <button> inside
+                    if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON') {
+                        return;
+                    }
+
+                    const body = header.nextElementSibling;
+                    const isOpen = header.classList.toggle('is-open');
+
+                    if (isOpen) {
+                        // Set max-height to the element's scroll height to animate open
+                        body.style.maxHeight = body.scrollHeight + 'px';
+                    } else {
+                        // Set to 0 to animate closed
+                        body.style.maxHeight = '0px';
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
