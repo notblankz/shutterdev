@@ -165,9 +165,10 @@ func (h *PhotoHandler) UpdatePhoto(c *gin.Context) {
 
 // DELETE /api/admin/photos?id=
 func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
-	idStr := c.Query("id")
+	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
+		log.Println(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid photo ID"})
 		return
 	}
