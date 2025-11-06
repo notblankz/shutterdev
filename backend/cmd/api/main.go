@@ -39,7 +39,8 @@ func main() {
 
 	photoHandler := handlers.NewPhotoHandler(DB, R2Service)
 
-	handlers.RegisterRoutes(r, photoHandler)
+	userApiKey := os.Getenv("ADMIN_SECRET_KEY")
+	handlers.RegisterRoutes(r, photoHandler, userApiKey)
 
 	r.Run()
 }
