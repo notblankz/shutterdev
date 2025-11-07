@@ -28,7 +28,7 @@ func NewPhotoHandler(db *sql.DB, r2 *services.R2Service) *PhotoHandler {
 	}
 }
 
-// GET /api/photos
+// GET /api/photos?limit=x&query=x
 func (h *PhotoHandler) GetAllPhotos(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
@@ -42,7 +42,7 @@ func (h *PhotoHandler) GetAllPhotos(c *gin.Context) {
 	c.JSON(http.StatusOK, photos)
 }
 
-// GET /api/photos?id=
+// GET /api/photos/:id
 func (h *PhotoHandler) GetPhotoByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -133,7 +133,7 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 	c.JSON(http.StatusCreated, photoModel)
 }
 
-// PUT /api/admin/photos?id=
+// PUT /api/admin/photos/:id
 func (h *PhotoHandler) UpdatePhoto(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -163,7 +163,7 @@ func (h *PhotoHandler) UpdatePhoto(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Photo updated successfully"})
 }
 
-// DELETE /api/admin/photos?id=
+// DELETE /api/admin/photos/:id
 func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
