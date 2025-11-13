@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -77,6 +78,36 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 		return
 	}
 	defer file.Close()
+
+	buffer := make([]byte, 512)
+	n, err := file.Read(buffer)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "failed to read uploaded file"})
+		return
+	}
+	contentType := http.DetectContentType(buffer[:n])
+
+	allowedTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+		"image/webp": true,
+	}
+
+	if !allowedTypes[contentType] {
+		c.JSON(400, gin.H{"error": "unsupported file type"})
+		return
+	}
+
+	if seeker, ok := file.(io.Seeker); ok {
+		_, err = seeker.Seek(0, io.SeekStart)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "failed to reset file pointer"})
+			return
+		}
+	} else {
+		c.JSON(500, gin.H{"error": "file stream is not seekable"})
+		return
+	}
 
 	title := c.PostForm("title")
 	desc := c.PostForm("description")
