@@ -67,6 +67,7 @@ func (h *PhotoHandler) GetPhotoByID(c *gin.Context) {
 
 // POST /api/admin/photos
 func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
+	const MaxUploadSize = 20 << 20
 	photoHeader, err := c.FormFile("image")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No 'image' file was uploaded in the request body"})
@@ -113,9 +114,11 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 	desc := c.PostForm("description")
 	tagsStr := c.PostForm("tags")
 
-	webImage, thumbImage, exifData, err := services.ProcessImage(file)
+	limitedReader := io.LimitReader(file, MaxUploadSize+1)
+
+	webImage, thumbImage, exifData, err := services.ProcessImage(limitedReader)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in processing the image"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in processing the image (Payload Too Large)"})
 		return
 	}
 
