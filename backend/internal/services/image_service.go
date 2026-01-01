@@ -3,6 +3,7 @@ package services
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -17,11 +18,25 @@ import (
 
 func ProcessImage(file io.Reader) (webImage []byte, thumbImage []byte, exifData models.Exif, err error) {
 
+	const MaxTotalPixelCount = 8000 * 8000 // Image width * Image height
+
 	// Copy the image byte stream into a bucket so that it can be reused
 	imageData, err := io.ReadAll(file)
 	if err != nil {
 		log.Println("[ERROR]: Could not dump Image Stream into Byte Slice", err)
 		return nil, nil, models.Exif{}, err
+	}
+
+	// <== Check Dimensions of Image ==>
+	decodeConfigReader := bytes.NewReader(imageData)
+	imageConfig, _, err := image.DecodeConfig(decodeConfigReader)
+	if err != nil {
+		log.Println("[ERROR]: DecodeConfig failed to extract dimensions of the image")
+		return nil, nil, models.Exif{}, err
+	} else if (imageConfig.Width * imageConfig.Height) > MaxTotalPixelCount {
+		log.Println("[ERROR]: Image Dimensions are bigger than allowed dimensions")
+		ErrImageTooLarge := errors.New("Provided image exceeds the maximum dimensions")
+		return nil, nil, models.Exif{}, ErrImageTooLarge
 	}
 
 	// <== EXIF Extraction ==>
