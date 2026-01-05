@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"shutterdev/backend/internal/models"
+	"sync"
 
 	"github.com/nfnt/resize"
 	"github.com/rwcarlsen/goexif/exif"
@@ -19,6 +20,9 @@ import (
 func ProcessImage(file io.Reader) (webImage []byte, thumbImage []byte, exifData models.Exif, err error) {
 
 	const MaxTotalPixelCount = 8000 * 8000 // Image width * Image height
+	var errExif error = nil
+	var errWeb error = nil
+	var errThumb error = nil
 
 	// Copy the image byte stream into a bucket so that it can be reused
 	imageData, err := io.ReadAll(file)
@@ -39,23 +43,12 @@ func ProcessImage(file io.Reader) (webImage []byte, thumbImage []byte, exifData 
 		return nil, nil, models.Exif{}, ErrImageTooLarge
 	}
 
-	// <== EXIF Extraction ==>
-	// create a new Reader for EXIF Extraction from the bucket (ImageData)
-	exifImageReader := bytes.NewReader(imageData)
+	var wg sync.WaitGroup
 
-	exif.RegisterParsers(mknote.All...)
+	wg.Go(func() {
+		exifData, errExif = extractExif(imageData)
+	})
 
-	extractedExif, err := exif.Decode(exifImageReader)
-	if err != nil {
-		log.Println("[WARNING]: No EXIF data found or decode error: ", err)
-		exifData = models.Exif{}
-	} else {
-		exifData = convertExifToModel(extractedExif)
-	}
-
-	log.Println("[SUCCESS]: Finished extracting EXIF Data from Image", exifData)
-
-	// <== Resize Image ==>
 	// again create a new Reader for Resizing from the bucket (ImageData)
 	resizeImageReader := bytes.NewReader(imageData)
 
@@ -66,23 +59,73 @@ func ProcessImage(file io.Reader) (webImage []byte, thumbImage []byte, exifData 
 		return nil, nil, exifData, err
 	}
 
+	wg.Go(func() {
+		webImage, errWeb = resizeToWeb(img)
+	})
+
+	wg.Go(func() {
+		thumbImage, errThumb = resizeToThumb(img)
+	})
+
+	wg.Wait()
+
+	if errExif != nil {
+		log.Println("[WARNING]: No EXIF data found or decode error: ", errExif)
+	} else if errThumb != nil {
+		log.Println("[ERROR]: Could not encode image.Image back to JPEG (for thumbImage)", errThumb)
+		return nil, nil, exifData, errThumb
+	} else if errWeb != nil {
+		log.Println("[ERROR]: Could not encode image.Image back to JPEG (for webImage)", errWeb)
+		return nil, nil, exifData, errWeb
+	}
+
+	return webImage, thumbImage, exifData, nil
+}
+
+func extractExif(imageData []byte) (models.Exif, error) {
+	// <== EXIF Extraction ==>
+	// create a empty Exif struct
+	exifData := models.Exif{}
+
+	// create a new Reader for EXIF Extraction from the bucket (ImageData)
+	exifImageReader := bytes.NewReader(imageData)
+
+	exif.RegisterParsers(mknote.All...) // TODO: Move to main function
+
+	extractedExif, err := exif.Decode(exifImageReader)
+	if err != nil {
+		return exifData, err
+	} else {
+		exifData = convertExifToModel(extractedExif)
+	}
+
+	log.Println("[SUCCESS]: Finished extracting EXIF Data from Image", exifData)
+
+	return exifData, nil
+}
+
+func resizeToWeb(img image.Image) (webImage []byte, err error) {
 	// resize the images to 400px and 1920px
 	webResized := resize.Resize(1920, 0, img, resize.Lanczos3)
-	thumbResized := resize.Resize(400, 0, img, resize.Lanczos3)
 
 	// <- Encode image.Image back to JPEG for storing ->
 	webImage, err = encodeImageToJPEG(webResized)
 	if err != nil {
-		log.Println("[ERROR]: Could not encode image.Image back to JPEG (for webImage)", err)
-		return nil, nil, exifData, err
-	}
-	thumbImage, err = encodeImageToJPEG(thumbResized)
-	if err != nil {
-		log.Println("[ERROR]: Could not encode image.Image back to JPEG (for thumbImage)", err)
-		return nil, nil, exifData, err
+		return nil, err
 	}
 
-	return webImage, thumbImage, exifData, nil
+	return webImage, nil
+}
+
+func resizeToThumb(img image.Image) (thumbImage []byte, err error) {
+	thumbResized := resize.Resize(400, 0, img, resize.Lanczos3)
+
+	thumbImage, err = encodeImageToJPEG(thumbResized)
+	if err != nil {
+		return nil, err
+	}
+
+	return thumbImage, nil
 }
 
 func convertExifToModel(rawExif *exif.Exif) models.Exif {
@@ -129,6 +172,5 @@ func encodeImageToJPEG(img image.Image) ([]byte, error) {
 		return nil, err
 	}
 
-	// fill comment here according to my question
 	return buf.Bytes(), nil
 }
