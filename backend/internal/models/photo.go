@@ -14,6 +14,8 @@ type Photo struct {
 	Description  string    `json:"description"`
 	ImageURL     string    `json:"imageUrl"`
 	ThumbnailURL string    `json:"thumbnailUrl"`
+	ThumbWidth   int       `json:"thumbWidth"`
+	ThumbHeight  int       `json:"thumbHeight"`
 	Exif         Exif      `json:"exif"`
 	Tags         []Tag     `json:"tags"`
 	CreatedAt    time.Time `json:"createdAt"`

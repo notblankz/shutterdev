@@ -12,42 +12,42 @@ import (
 	"shutterdev/backend/internal/models"
 	"sync"
 
+	"github.com/disintegration/imaging"
 	"github.com/nfnt/resize"
 	"github.com/rwcarlsen/goexif/exif"
 	"github.com/rwcarlsen/goexif/mknote"
 )
 
-func ProcessImage(file io.Reader) (webImage []byte, thumbImage []byte, exifData models.Exif, err error) {
+func ProcessImage(file io.Reader) (webImage []byte, thumbImage []byte, exifData models.Exif, thumbWidth int, thumbHeight int, err error) {
 
 	const MaxTotalPixelCount = 8000 * 8000 // Image width * Image height
 	var errExif error = nil
 	var errWeb error = nil
 	var errThumb error = nil
+	var imageOrientation int
 
 	// Copy the image byte stream into a bucket so that it can be reused
 	imageData, err := io.ReadAll(file)
 	if err != nil {
 		log.Println("[ERROR]: Could not dump Image Stream into Byte Slice", err)
-		return nil, nil, models.Exif{}, err
+		return nil, nil, models.Exif{}, 0, 0, err
 	}
 
-	// <== Check Dimensions of Image ==>
+	// <== Check Dimensions of Image & assign isPortrait value ==>
 	decodeConfigReader := bytes.NewReader(imageData)
 	imageConfig, _, err := image.DecodeConfig(decodeConfigReader)
 	if err != nil {
 		log.Println("[ERROR]: DecodeConfig failed to extract dimensions of the image")
-		return nil, nil, models.Exif{}, err
+		return nil, nil, models.Exif{}, 0, 0, err
 	} else if (imageConfig.Width * imageConfig.Height) > MaxTotalPixelCount {
 		log.Println("[ERROR]: Image Dimensions are bigger than allowed dimensions")
 		ErrImageTooLarge := errors.New("Provided image exceeds the maximum dimensions")
-		return nil, nil, models.Exif{}, ErrImageTooLarge
+		return nil, nil, models.Exif{}, 0, 0, ErrImageTooLarge
 	}
 
-	var wg sync.WaitGroup
+	exifData, imageOrientation, errExif = extractExif(imageData)
 
-	wg.Go(func() {
-		exifData, errExif = extractExif(imageData)
-	})
+	var wg sync.WaitGroup
 
 	// again create a new Reader for Resizing from the bucket (ImageData)
 	resizeImageReader := bytes.NewReader(imageData)
@@ -56,15 +56,17 @@ func ProcessImage(file io.Reader) (webImage []byte, thumbImage []byte, exifData 
 	img, _, err := image.Decode(resizeImageReader)
 	if err != nil {
 		log.Println("[ERROR]: Could not decode Image to image.Image", err)
-		return nil, nil, exifData, err
+		return nil, nil, exifData, 0, 0, err
 	}
 
+	rotatedImg := applyOrientation(img, imageOrientation)
+
 	wg.Go(func() {
-		webImage, errWeb = resizeToWeb(img)
+		webImage, errWeb = resizeToWeb(rotatedImg)
 	})
 
 	wg.Go(func() {
-		thumbImage, errThumb = resizeToThumb(img)
+		thumbImage, thumbWidth, thumbHeight, errThumb = resizeToThumb(rotatedImg)
 	})
 
 	wg.Wait()
@@ -73,19 +75,20 @@ func ProcessImage(file io.Reader) (webImage []byte, thumbImage []byte, exifData 
 		log.Println("[WARNING]: No EXIF data found or decode error: ", errExif)
 	} else if errThumb != nil {
 		log.Println("[ERROR]: Could not encode image.Image back to JPEG (for thumbImage)", errThumb)
-		return nil, nil, exifData, errThumb
+		return nil, nil, exifData, 0, 0, errThumb
 	} else if errWeb != nil {
 		log.Println("[ERROR]: Could not encode image.Image back to JPEG (for webImage)", errWeb)
-		return nil, nil, exifData, errWeb
+		return nil, nil, exifData, 0, 0, errWeb
 	}
 
-	return webImage, thumbImage, exifData, nil
+	return webImage, thumbImage, exifData, thumbWidth, thumbHeight, nil
 }
 
-func extractExif(imageData []byte) (models.Exif, error) {
+func extractExif(imageData []byte) (models.Exif, int, error) {
 	// <== EXIF Extraction ==>
 	// create a empty Exif struct
 	exifData := models.Exif{}
+	var orientation int
 
 	// create a new Reader for EXIF Extraction from the bucket (ImageData)
 	exifImageReader := bytes.NewReader(imageData)
@@ -94,19 +97,25 @@ func extractExif(imageData []byte) (models.Exif, error) {
 
 	extractedExif, err := exif.Decode(exifImageReader)
 	if err != nil {
-		return exifData, err
+		return exifData, 0, err
 	} else {
-		exifData = convertExifToModel(extractedExif)
+		exifData, orientation = convertExifToModel(extractedExif)
 	}
 
 	log.Println("[SUCCESS]: Finished extracting EXIF Data from Image", exifData)
 
-	return exifData, nil
+	return exifData, orientation, nil
 }
 
 func resizeToWeb(img image.Image) (webImage []byte, err error) {
-	// resize the images to 400px and 1920px
-	webResized := resize.Resize(1920, 0, img, resize.Lanczos3)
+	var webResized image.Image
+	if img.Bounds().Dx() >= img.Bounds().Dy() {
+		// landscape resize
+		webResized = resize.Resize(1920, 0, img, resize.Lanczos3)
+	} else {
+		// portrait resize
+		webResized = resize.Resize(0, 1920, img, resize.Lanczos3)
+	}
 
 	// <- Encode image.Image back to JPEG for storing ->
 	webImage, err = encodeImageToJPEG(webResized)
@@ -117,19 +126,29 @@ func resizeToWeb(img image.Image) (webImage []byte, err error) {
 	return webImage, nil
 }
 
-func resizeToThumb(img image.Image) (thumbImage []byte, err error) {
-	thumbResized := resize.Resize(400, 0, img, resize.Lanczos3)
+func resizeToThumb(img image.Image) (thumbImage []byte, thumbWidth int, thumbHeight int, err error) {
+	var thumbResized image.Image
+	if img.Bounds().Dx() > img.Bounds().Dy() {
+		// landscape resize
+		thumbResized = resize.Resize(400, 0, img, resize.Lanczos3)
+	} else {
+		// portrait resize
+		thumbResized = resize.Resize(0, 400, img, resize.Lanczos3)
+	}
+	thumbWidth = thumbResized.Bounds().Dx()
+	thumbHeight = thumbResized.Bounds().Dy()
 
 	thumbImage, err = encodeImageToJPEG(thumbResized)
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 
-	return thumbImage, nil
+	return thumbImage, thumbWidth, thumbHeight, nil
 }
 
-func convertExifToModel(rawExif *exif.Exif) models.Exif {
+func convertExifToModel(rawExif *exif.Exif) (models.Exif, int) {
 	var finalExifData models.Exif
+	var orientation int
 
 	// === Extract Aperture ===
 	apertureTag, err := rawExif.Get(exif.FNumber)
@@ -159,7 +178,14 @@ func convertExifToModel(rawExif *exif.Exif) models.Exif {
 		}
 	}
 
-	return finalExifData
+	// Orientation
+	if tag, err := rawExif.Get(exif.Orientation); err == nil {
+		if val, err := tag.Int(0); err == nil {
+			orientation = val
+		}
+	}
+
+	return finalExifData, orientation
 }
 
 func encodeImageToJPEG(img image.Image) ([]byte, error) {
@@ -173,4 +199,17 @@ func encodeImageToJPEG(img image.Image) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func applyOrientation(img image.Image, orientation int) image.Image {
+	switch orientation {
+	case 3:
+		return imaging.Rotate180(img)
+	case 6:
+		return imaging.Rotate270(img)
+	case 8:
+		return imaging.Rotate90(img)
+	default:
+		return img
+	}
 }

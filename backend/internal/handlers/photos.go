@@ -120,7 +120,7 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 
 	limitedReader := io.LimitReader(file, MaxUploadSize+1)
 
-	webImage, thumbImage, exifData, err := services.ProcessImage(limitedReader)
+	webImage, thumbImage, exifData, thumbWidth, thumbHeight, err := services.ProcessImage(limitedReader)
 	// TODO: make specific error catchers
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in processing the image"})
@@ -129,12 +129,6 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	// make upload concurrent
-	// waitGroup for 2 go funcs
-	// one for web image upload
-	// another for thumb image upload
-
-	// concurrent upload
 	// variables
 	var errWebUpload error
 	var webURL string
@@ -142,12 +136,12 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 	var thumbURL string
 
 	wg.Go(func() {
-		webFileName := services.GenerateUniqueFileName("web/", photoHeader.Filename)
+		webFileName := services.GenerateUniqueFileName("web", photoHeader.Filename)
 		webURL, errWebUpload = h.R2Service.UploadFile(ctx, webFileName, webImage)
 	})
 
 	wg.Go(func() {
-		thumbFileName := services.GenerateUniqueFileName("thumbnails/", photoHeader.Filename)
+		thumbFileName := services.GenerateUniqueFileName("thumbnails", photoHeader.Filename)
 		thumbURL, errThumbUpload = h.R2Service.UploadFile(ctx, thumbFileName, thumbImage)
 	})
 
@@ -175,6 +169,8 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 		Description:  desc,
 		ImageURL:     webURL,
 		ThumbnailURL: thumbURL,
+		ThumbWidth:   thumbWidth,
+		ThumbHeight:  thumbHeight,
 		Exif:         exifData,
 		Tags:         tags,
 		CreatedAt:    time.Now(),

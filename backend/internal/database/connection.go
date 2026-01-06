@@ -20,6 +20,8 @@ func InitDB(filepath string) *sql.DB {
 		"description" TEXT,
 		"image_url" TEXT,
 		"thumbnail_url" TEXT,
+		"thumbnail_width" INT,
+		"thumbnail_height" INT,
 		"aperture" TEXT,
 		"shutter_speed" TEXT,
 		"iso" TEXT,

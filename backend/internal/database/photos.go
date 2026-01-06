@@ -15,8 +15,8 @@ func CreatePhoto(db *sql.DB, photo *models.Photo) (int64, error) {
 	defer tx.Rollback()
 
 	stmt, err := tx.Prepare(`
-		INSERT INTO photos (title, description, image_url, thumbnail_url, aperture, shutter_speed, iso, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO photos (title, description, image_url, thumbnail_url, thumbnail_width, thumbnail_height, aperture, shutter_speed, iso, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return 0, err
@@ -28,6 +28,8 @@ func CreatePhoto(db *sql.DB, photo *models.Photo) (int64, error) {
 		photo.Description,
 		photo.ImageURL,
 		photo.ThumbnailURL,
+		photo.ThumbWidth,
+		photo.ThumbHeight,
 		photo.Exif.Aperture,
 		photo.Exif.ShutterSpeed,
 		photo.Exif.ISO,
