@@ -12,6 +12,7 @@ import (
 	"shutterdev/backend/internal/services"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -69,6 +70,7 @@ func (h *PhotoHandler) GetPhotoByID(c *gin.Context) {
 func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 
 	const MaxUploadSize = 20 << 20
+	var wg sync.WaitGroup
 
 	photoHeader, err := c.FormFile("image")
 	if err != nil {
@@ -119,30 +121,50 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 	limitedReader := io.LimitReader(file, MaxUploadSize+1)
 
 	webImage, thumbImage, exifData, err := services.ProcessImage(limitedReader)
+	// TODO: make specific error catchers
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in processing the image"})
 		return
 	}
 
-	webFileName := services.GenerateUniqueFileName("web/", photoHeader.Filename)
-	thumbFileName := services.GenerateUniqueFileName("thumbnails/", photoHeader.Filename)
-
 	ctx := c.Request.Context()
 
-	webURL, err := h.R2Service.UploadFile(ctx, webFileName, webImage)
-	if err != nil {
+	// make upload concurrent
+	// waitGroup for 2 go funcs
+	// one for web image upload
+	// another for thumb image upload
+
+	// concurrent upload
+	// variables
+	var errWebUpload error
+	var webURL string
+	var errThumbUpload error
+	var thumbURL string
+
+	wg.Go(func() {
+		webFileName := services.GenerateUniqueFileName("web/", photoHeader.Filename)
+		webURL, errWebUpload = h.R2Service.UploadFile(ctx, webFileName, webImage)
+	})
+
+	wg.Go(func() {
+		thumbFileName := services.GenerateUniqueFileName("thumbnails/", photoHeader.Filename)
+		thumbURL, errThumbUpload = h.R2Service.UploadFile(ctx, thumbFileName, thumbImage)
+	})
+
+	// Error handling
+	if errWebUpload != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not upload web image to R2 Bucket"})
 		return
-	}
-	thumbURL, err := h.R2Service.UploadFile(ctx, thumbFileName, thumbImage)
-	if err != nil {
+	} else if errThumbUpload != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not upload thumb image to R2 Bucket"})
 		return
 	}
 
+	wg.Wait()
+
 	var tags []models.Tag
-	tagNames := strings.Split(tagsStr, ",")
-	for _, name := range tagNames {
+	tagNames := strings.SplitSeq(tagsStr, ",")
+	for name := range tagNames {
 		if strings.TrimSpace(name) != "" {
 			tags = append(tags, models.Tag{Name: strings.TrimSpace(name)})
 		}
@@ -251,6 +273,7 @@ func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"error": "Photo deleted successfully"})
 }
 
+// <== Helper Functions ==>
 func getKeyFromURL(fileURL string) (string, error) {
 	parsedURL, err := url.Parse(fileURL)
 	if err != nil {
