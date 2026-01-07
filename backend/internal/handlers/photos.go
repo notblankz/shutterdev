@@ -30,7 +30,7 @@ func NewPhotoHandler(db *sql.DB, r2 *services.R2Service) *PhotoHandler {
 	}
 }
 
-// GET /api/photos?limit=x&query=x
+// GET /api/photos?limit=x&offset=x
 func (h *PhotoHandler) GetAllPhotos(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))

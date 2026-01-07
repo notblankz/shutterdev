@@ -151,7 +151,7 @@ func GetPhotoByID(db *sql.DB, id int) (*models.Photo, error) {
 	return &photo, nil
 }
 
-func GetAllPhotos(db *sql.DB, limit, offset int) ([]models.Photo, error) {
+func GetAllPhotos(db *sql.DB, limit, offset int) ([]models.ThumbnailPhoto, error) {
 	//  Query the Photos table to get the next set of photos (pagination is implemented via the Offset and Limit)
 	selectAllPhotos := `
 	SELECT id, thumbnail_url, thumbnail_width, thumbnail_height
@@ -165,22 +165,22 @@ func GetAllPhotos(db *sql.DB, limit, offset int) ([]models.Photo, error) {
 	}
 	defer rows.Close()
 
-	photoSlice := make([]models.Photo, limit)
+	photoSlice := make([]models.ThumbnailPhoto, 0, limit)
 
 	// add the received rows as an entry in the Map with the skeleton -> photoID: &models.Photo <- This is a pointer so that we can make changes
 	for rows.Next() {
-		var photo models.Photo
+		var photoThumbnail models.ThumbnailPhoto
 		err := rows.Scan(
-			&photo.ID,
-			&photo.ThumbnailURL,
-			&photo.ThumbWidth,
-			&photo.ThumbHeight,
+			&photoThumbnail.ID,
+			&photoThumbnail.ThumbnailURL,
+			&photoThumbnail.ThumbWidth,
+			&photoThumbnail.ThumbHeight,
 		)
 		if err != nil {
 			return nil, err
 		}
 		// append the models.Photo to the photoSlice
-		photoSlice = append(photoSlice, photo)
+		photoSlice = append(photoSlice, photoThumbnail)
 	}
 
 	if err := rows.Err(); err != nil {

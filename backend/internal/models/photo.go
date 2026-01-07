@@ -20,3 +20,11 @@ type Photo struct {
 	Tags         []Tag     `json:"tags"`
 	CreatedAt    time.Time `json:"createdAt"`
 }
+
+
+type ThumbnailPhoto struct {
+	ID           int       `json:"id"`
+	ThumbnailURL string    `json:"thumbnailUrl"`
+	ThumbWidth   int       `json:"thumbWidth"`
+	ThumbHeight  int       `json:"thumbHeight"`
+}
