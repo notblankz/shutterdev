@@ -127,8 +127,6 @@ func resizeToWeb(img image.Image) (webImage []byte, err error) {
 	return webImage, nil
 }
 
-// TODO (done): resize to 800px and sharpen image a bit
-// TODO: encode images to webp
 func resizeToThumb(img image.Image) (finalThumbImage []byte, thumbWidth int, thumbHeight int, err error) {
 	var thumbResized image.Image
 	var sharpernedThumbResized image.Image
@@ -194,7 +192,6 @@ func convertExifToModel(rawExif *exif.Exif) (models.Exif, int) {
 	return finalExifData, orientation
 }
 
-// use https://github.com/HugoSmits86/nativewebp for encoding to WebP
 func encodeImageToJPEG(img image.Image) ([]byte, error) {
 	// Create a new buffer that we will write the image into
 	buf := new(bytes.Buffer)
@@ -208,6 +205,7 @@ func encodeImageToJPEG(img image.Image) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// use https://github.com/HugoSmits86/nativewebp for encoding to WebP
 func encodeImageToWebP(img image.Image) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
