@@ -16,7 +16,6 @@ import (
 	"github.com/disintegration/imaging"
 	"github.com/nfnt/resize"
 	"github.com/rwcarlsen/goexif/exif"
-	"github.com/rwcarlsen/goexif/mknote"
 )
 
 func ProcessImage(file io.Reader) (webImage []byte, thumbImage []byte, exifData models.Exif, thumbWidth int, thumbHeight int, err error) {
@@ -93,8 +92,6 @@ func extractExif(imageData []byte) (models.Exif, int, error) {
 
 	// create a new Reader for EXIF Extraction from the bucket (ImageData)
 	exifImageReader := bytes.NewReader(imageData)
-
-	exif.RegisterParsers(mknote.All...) // TODO: Move to main function
 
 	extractedExif, err := exif.Decode(exifImageReader)
 	if err != nil {

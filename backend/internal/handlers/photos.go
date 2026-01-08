@@ -217,6 +217,7 @@ func (h *PhotoHandler) UpdatePhoto(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Photo updated successfully"})
 }
 
+// TODO: Implement delete all photos
 // DELETE /api/admin/photos/:id
 func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 	idStr := c.Param("id")

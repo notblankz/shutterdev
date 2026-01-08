@@ -9,6 +9,8 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/rwcarlsen/goexif/exif"
+	"github.com/rwcarlsen/goexif/mknote"
 
 	"shutterdev/backend/internal/database"
 	"shutterdev/backend/internal/handlers"
@@ -49,6 +51,8 @@ func main() {
 	if r2Err != nil {
 		log.Println("[ERROR] Could not initialize R2 Service", r2Err)
 	}
+
+	exif.RegisterParsers(mknote.All...)
 
 	photoHandler := handlers.NewPhotoHandler(DB, R2Service)
 
