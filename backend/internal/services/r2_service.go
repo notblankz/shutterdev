@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"path/filepath"
+	"net/http"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -63,7 +63,7 @@ func (s *R2Service) UploadFile(ctx context.Context, fileName string, data []byte
 		Bucket:      aws.String(s.BucketName),
 		Key:         aws.String(fileName),
 		Body:        body,
-		ContentType: aws.String("image/jpeg"),
+		ContentType: aws.String(http.DetectContentType(data)),
 	}
 
 	_, err := s.Client.PutObject(ctx, input)
@@ -93,12 +93,15 @@ func (s *R2Service) DeleteFile(ctx context.Context, fileName string) error {
 
 // GenerateUniqueFileName creates a unique name while preserving the file extension.
 // This function is perfect, no changes needed.
-func GenerateUniqueFileName(basePath, originalName string) string {
+func GenerateUniqueFileName(basePath string) string {
 	// We'll use the original extension, but a UUID for the name.
 	// We can use the originalName to get the extension.
-	ext := filepath.Ext(originalName)
-	if ext == "" {
+	var ext string
+	switch basePath {
+	case "web":
 		ext = ".jpg"
+	case "thumbnails":
+		ext = ".webp"
 	}
 
 	id := uuid.New().String()

@@ -136,14 +136,16 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 	var thumbURL string
 
 	wg.Go(func() {
-		webFileName := services.GenerateUniqueFileName("web", photoHeader.Filename)
+		webFileName := services.GenerateUniqueFileName("web")
 		webURL, errWebUpload = h.R2Service.UploadFile(ctx, webFileName, webImage)
 	})
 
 	wg.Go(func() {
-		thumbFileName := services.GenerateUniqueFileName("thumbnails", photoHeader.Filename)
+		thumbFileName := services.GenerateUniqueFileName("thumbnails")
 		thumbURL, errThumbUpload = h.R2Service.UploadFile(ctx, thumbFileName, thumbImage)
 	})
+
+	wg.Wait()
 
 	// Error handling
 	if errWebUpload != nil {
@@ -153,8 +155,6 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not upload thumb image to R2 Bucket"})
 		return
 	}
-
-	wg.Wait()
 
 	var tags []models.Tag
 	tagNames := strings.SplitSeq(tagsStr, ",")

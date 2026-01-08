@@ -12,6 +12,7 @@ import (
 	"shutterdev/backend/internal/models"
 	"sync"
 
+	"github.com/HugoSmits86/nativewebp"
 	"github.com/disintegration/imaging"
 	"github.com/nfnt/resize"
 	"github.com/rwcarlsen/goexif/exif"
@@ -126,24 +127,29 @@ func resizeToWeb(img image.Image) (webImage []byte, err error) {
 	return webImage, nil
 }
 
-func resizeToThumb(img image.Image) (thumbImage []byte, thumbWidth int, thumbHeight int, err error) {
+// TODO (done): resize to 800px and sharpen image a bit
+// TODO: encode images to webp
+func resizeToThumb(img image.Image) (finalThumbImage []byte, thumbWidth int, thumbHeight int, err error) {
 	var thumbResized image.Image
+	var sharpernedThumbResized image.Image
 	if img.Bounds().Dx() > img.Bounds().Dy() {
 		// landscape resize
-		thumbResized = resize.Resize(400, 0, img, resize.Lanczos3)
+		thumbResized = resize.Resize(800, 0, img, resize.Lanczos3)
+		sharpernedThumbResized = imaging.Sharpen(thumbResized, 0.3)
 	} else {
 		// portrait resize
-		thumbResized = resize.Resize(0, 400, img, resize.Lanczos3)
+		thumbResized = resize.Resize(0, 800, img, resize.Lanczos3)
+		sharpernedThumbResized = imaging.Sharpen(thumbResized, 0.3)
 	}
 	thumbWidth = thumbResized.Bounds().Dx()
 	thumbHeight = thumbResized.Bounds().Dy()
 
-	thumbImage, err = encodeImageToJPEG(thumbResized)
+	finalThumbImage, err = encodeImageToWebP(sharpernedThumbResized)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
-	return thumbImage, thumbWidth, thumbHeight, nil
+	return finalThumbImage, thumbWidth, thumbHeight, nil
 }
 
 func convertExifToModel(rawExif *exif.Exif) (models.Exif, int) {
@@ -188,12 +194,24 @@ func convertExifToModel(rawExif *exif.Exif) (models.Exif, int) {
 	return finalExifData, orientation
 }
 
+// use https://github.com/HugoSmits86/nativewebp for encoding to WebP
 func encodeImageToJPEG(img image.Image) ([]byte, error) {
 	// Create a new buffer that we will write the image into
 	buf := new(bytes.Buffer)
 
 	// Encode the image stream back into JPEG
 	err := jpeg.Encode(buf, img, &jpeg.Options{Quality: 85})
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func encodeImageToWebP(img image.Image) ([]byte, error) {
+	buf := new(bytes.Buffer)
+
+	err := nativewebp.Encode(buf, img, nil)
 	if err != nil {
 		return nil, err
 	}
