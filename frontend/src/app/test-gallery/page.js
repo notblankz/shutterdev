@@ -3,6 +3,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 export default function TestGalleryPage() {
 
@@ -42,18 +43,21 @@ export default function TestGalleryPage() {
 
 
     return (
-        // map a button to use setOffset to load the next page of photos
+        // TOOD: implement pagination
         <div className="flex justify-center items-center px-40 py-10">
             <div className="columns-2 md:columns-3 gap-4">
-            {photos.map(photo => (
+            {photos.map((photo, index) => (
                 <div key={photo.id} className="mb-4 break-inside-avoid">
-                <img
-                    src={photo.thumbnailUrl}
-                    className="w-full rounded-md"
-                    style={{
-                    aspectRatio: `${photo.thumbWidth} / ${photo.thumbHeight}`,
-                    }}
-                />
+                    {}
+                    <Image
+                        src={photo.thumbnailUrl}
+                        width={photo.thumbWidth}
+                        height={photo.thumbHeight}
+                        alt="photo by photographer" // TODO: add description as alt text
+                        className="rounded-md"
+                        priority={index < 6}
+                        unoptimized // TODO: check perf diff between unoptimised and optimised
+                    />
                 </div>
             ))}
             </div>
