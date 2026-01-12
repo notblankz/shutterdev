@@ -4,11 +4,54 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { Skeleton } from "@/components/ui/skeleton";
 
+const LIMIT = 20
+const shimmer = (w, h) => `
+<svg width="${w}" height="${h}" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <linearGradient id="g">
+      <stop stop-color="#333" offset="20%" />
+      <stop stop-color="#222" offset="50%" />
+      <stop stop-color="#333" offset="70%" />
+    </linearGradient>
+  </defs>
+  <rect width="${w}" height="${h}" fill="#333" />
+  <rect id="r" width="${w}" height="${h}" fill="url(#g)" />
+  <animate xlink:href="#r" attributeName="x" from="-${w}" to="${w}" dur="1s" repeatCount="indefinite"  />
+</svg>`;
+
+const toBase64 = (str) =>
+  typeof window === "undefined"
+    ? Buffer.from(str).toString("base64")
+    : window.btoa(str);
+
+function ImageCard({index, src, width, height}) {
+    const [loaded, setLoaded] = useState(false)
+
+    return (
+        <div key={index} className="mb-4 break-inside-avoid">
+            {!loaded && <Skeleton className={`rounded-md h-${height}px w-${width}px`}/>}
+            {/* check performance difference between preload and priority loading */}
+            <Image
+                src={src}
+                width={width}
+                height={height}
+                alt="photo by photographer" // TODO: add description as alt text
+                className="rounded-md"
+                // priority={index < 6}
+                placeholder={`data:image/svg+xml;base64,${toBase64(shimmer(width, height))}`}
+                onLoadingComplete={() => setLoaded(true)}
+                preload={true}
+                unoptimized // TODO: check perf diff between unoptimised and optimised
+            />
+        </div>
+    )
+}
+
+// TODO: Convert each image into it's own Component so that we can try to implement skeletons
 export default function TestGalleryPage() {
 
-    // limit and offset variables
-    const limit = 20;
     const [offset, setOffset] = useState(0);
     const [photos, setPhotos] = useState([]);
 
@@ -18,10 +61,8 @@ export default function TestGalleryPage() {
             console.log("Page mounted at:", (t0 / 1000).toFixed(3), "s");
 
             try {
-                console.log("We will call the API here")
-                const limit = 20
                 var offset = 0
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/photos?limit=${limit}&offset=${offset}`, {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/photos?limit=${LIMIT}&offset=${offset}`, {
                     method: "GET",
                 })
                 if (!res.ok) {
@@ -30,9 +71,6 @@ export default function TestGalleryPage() {
                 }
                 const photos = await res.json()
                 setPhotos(photos)
-                const t1 = performance.now()
-                console.log(photos)
-                console.log("Time taken to fetch from API: ", ((t1-t0)/100).toFixed(2), "s")
                 return photos
             } catch(e) {
                 console.log(e)
@@ -46,20 +84,9 @@ export default function TestGalleryPage() {
         // TOOD: implement pagination
         <div className="flex justify-center items-center px-40 py-10">
             <div className="columns-2 md:columns-3 gap-4">
-            {photos.map((photo, index) => (
-                <div key={photo.id} className="mb-4 break-inside-avoid">
-                    {}
-                    <Image
-                        src={photo.thumbnailUrl}
-                        width={photo.thumbWidth}
-                        height={photo.thumbHeight}
-                        alt="photo by photographer" // TODO: add description as alt text
-                        className="rounded-md"
-                        priority={index < 6}
-                        unoptimized // TODO: check perf diff between unoptimised and optimised
-                    />
-                </div>
-            ))}
+                {photos.map((photo, index) => (
+                    <ImageCard key={photo.id} index={index} src={photo.thumbnailUrl} width={photo.thumbWidth} height={photo.thumbHeight}/>
+                ))}
             </div>
         </div>
 
