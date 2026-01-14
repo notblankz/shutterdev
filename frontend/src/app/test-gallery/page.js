@@ -62,6 +62,7 @@ export default function TestGalleryPage() {
             <Masonry columns={3} spacing={2}>
                 {photos.map((photo, index) => (
                     <Image
+                        key={index}
                         src={photo.thumbnailUrl}
                         width={photo.thumbWidth}
                         height={photo.thumbHeight}
