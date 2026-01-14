@@ -10,8 +10,6 @@ type Exif struct {
 
 type Photo struct {
 	ID           int       `json:"id"`
-	Title        string    `json:"title"`
-	Description  string    `json:"description"`
 	ImageURL     string    `json:"imageUrl"`
 	ThumbnailURL string    `json:"thumbnailUrl"`
 	ThumbWidth   int       `json:"thumbWidth"`

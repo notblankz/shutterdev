@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"path"
@@ -71,162 +73,34 @@ func (h *PhotoHandler) GetPhotoByID(c *gin.Context) {
 // POST /api/admin/photos
 func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 
-	const MaxUploadSize = 20 << 20
 	var imageCounter int
+	responded := false
 
 	form, err := c.MultipartForm()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured in decoding the multipart form"})
+		if !responded {
+			responded = true
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured in decoding the multipart form"})
+		}
 		return
 	}
 	files := form.File["image"]
+	if len(files) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "no images provided",
+		})
+		return
+	}
 
-	for _, image := range files {
-		var wg sync.WaitGroup
-
-		imageData, err := image.Open()
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "No 'image' file was uploaded in the request body"})
+	for _, file := range files {
+		if err := h.processSingleImage(c, file); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-
-		// lambda function to do all the image data work and close the file when done
-		func() {
-			defer imageData.Close()
-			buffer := make([]byte, 512)
-			n, err := imageData.Read(buffer)
-			if err != nil {
-				c.JSON(400, gin.H{"error": "failed to read uploaded file"})
-				return
-			}
-			contentType := http.DetectContentType(buffer[:n])
-
-			allowedTypes := map[string]bool{
-				"image/jpeg": true,
-				"image/png":  true,
-				"image/webp": true,
-			}
-
-			if !allowedTypes[contentType] {
-				c.JSON(400, gin.H{"error": "unsupported file type"})
-				return
-			}
-
-			if seeker, ok := imageData.(io.Seeker); ok {
-				_, err = seeker.Seek(0, io.SeekStart)
-				if err != nil {
-					c.JSON(500, gin.H{"error": "failed to reset file pointer"})
-					return
-				}
-			} else {
-				c.JSON(500, gin.H{"error": "file stream is not seekable"})
-				return
-			}
-
-			title := c.PostForm("title")
-			desc := c.PostForm("description")
-			tagsStr := c.PostForm("tags")
-
-			limitedReader := io.LimitReader(imageData, MaxUploadSize+1)
-
-			webImage, thumbImage, exifData, thumbWidth, thumbHeight, err := services.ProcessImage(limitedReader)
-			// TODO: make specific error catchers
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in processing the image"})
-				return
-			}
-
-			ctx := c.Request.Context()
-
-			// variables
-			var errWebUpload error
-			var webURL string
-			var errThumbUpload error
-			var thumbURL string
-
-			wg.Go(func() {
-				webFileName := services.GenerateUniqueFileName("web")
-				webURL, errWebUpload = h.R2Service.UploadFile(ctx, webFileName, webImage)
-			})
-
-			wg.Go(func() {
-				thumbFileName := services.GenerateUniqueFileName("thumbnails")
-				thumbURL, errThumbUpload = h.R2Service.UploadFile(ctx, thumbFileName, thumbImage)
-			})
-
-			wg.Wait()
-
-			// Error handling
-			if errWebUpload != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not upload web image to R2 Bucket"})
-				return
-			} else if errThumbUpload != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not upload thumb image to R2 Bucket"})
-				return
-			}
-
-			var tags []models.Tag
-			tagNames := strings.SplitSeq(tagsStr, ",")
-			for name := range tagNames {
-				if strings.TrimSpace(name) != "" {
-					tags = append(tags, models.Tag{Name: strings.TrimSpace(name)})
-				}
-			}
-			photoModel := &models.Photo{
-				Title:        title,
-				Description:  desc,
-				ImageURL:     webURL,
-				ThumbnailURL: thumbURL,
-				ThumbWidth:   thumbWidth,
-				ThumbHeight:  thumbHeight,
-				Exif:         exifData,
-				Tags:         tags,
-				CreatedAt:    time.Now(),
-			}
-
-			photoID, err := database.CreatePhoto(h.DB, photoModel)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not add image to database"})
-				log.Println(err)
-				return
-			}
-			photoModel.ID = int(photoID)
-			imageCounter++
-
-		}()
+		imageCounter++
 	}
 
-	c.JSON(http.StatusCreated, imageCounter)
-}
-
-// PUT /api/admin/photos/:id
-func (h *PhotoHandler) UpdatePhoto(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid photo ID"})
-		return
-	}
-
-	var input struct {
-		Title       string `json:"title"`
-		Description string `json:"description"`
-	}
-
-	// put the json body into the input struct
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON data: " + err.Error()})
-		return
-	}
-
-	dbErr := database.UpdatePhoto(h.DB, id, input.Title, input.Description)
-	if dbErr != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error while updating photo in database"})
-		log.Println(dbErr)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Photo updated successfully"})
+	c.JSON(http.StatusCreated, gin.H{"uploaded": imageCounter})
 }
 
 // TODO: Implement delete all photos
@@ -290,4 +164,100 @@ func getKeyFromURL(fileURL string) (string, error) {
 	}
 
 	return path.Clean(parsedURL.Path), nil
+}
+
+func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHeader) error {
+
+	const MaxUploadSize = 20 << 20
+
+	imageData, err := file.Open()
+	if err != nil {
+		return fmt.Errorf("failed to open image")
+	}
+	defer imageData.Close()
+
+	buffer := make([]byte, 512)
+	n, err := imageData.Read(buffer)
+	if err != nil {
+		return fmt.Errorf("failed to read image")
+	}
+
+	contentType := http.DetectContentType(buffer[:n])
+	allowedTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+		"image/webp": true,
+	}
+	if !allowedTypes[contentType] {
+		return fmt.Errorf("unsupported file type")
+	}
+
+	if seeker, ok := imageData.(io.Seeker); ok {
+		if _, err := seeker.Seek(0, io.SeekStart); err != nil {
+			return fmt.Errorf("failed to reset file pointer")
+		}
+	} else {
+		return fmt.Errorf("file stream not seekable")
+	}
+
+	tagsStr := c.PostForm("tags")
+	limitedReader := io.LimitReader(imageData, MaxUploadSize+1)
+
+	webImage, thumbImage, exifData, thumbWidth, thumbHeight, err := services.ProcessImage(limitedReader)
+	// TODO: make specific error handlers
+	if err != nil {
+		return fmt.Errorf("image processing failed")
+	}
+
+	ctx := c.Request.Context()
+
+	// variables
+	var errWebUpload error
+	var webURL string
+	var errThumbUpload error
+	var thumbURL string
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		webFileName := services.GenerateUniqueFileName("web")
+		webURL, errWebUpload = h.R2Service.UploadFile(ctx, webFileName, webImage)
+	})
+
+	wg.Go(func() {
+		thumbFileName := services.GenerateUniqueFileName("thumbnails")
+		thumbURL, errThumbUpload = h.R2Service.UploadFile(ctx, thumbFileName, thumbImage)
+	})
+
+	wg.Wait()
+
+	// Error handling
+	if errWebUpload != nil {
+		return fmt.Errorf("Could not upload web image to R2 Bucket")
+	} else if errThumbUpload != nil {
+		return fmt.Errorf("Could not upload thumbnail image to R2 Bucket")
+	}
+
+	var tags []models.Tag
+	tagNames := strings.SplitSeq(tagsStr, ",")
+	for name := range tagNames {
+		if strings.TrimSpace(name) != "" {
+			tags = append(tags, models.Tag{Name: strings.TrimSpace(name)})
+		}
+	}
+	photoModel := &models.Photo{
+		ImageURL:     webURL,
+		ThumbnailURL: thumbURL,
+		ThumbWidth:   thumbWidth,
+		ThumbHeight:  thumbHeight,
+		Exif:         exifData,
+		Tags:         tags,
+		CreatedAt:    time.Now(),
+	}
+
+	if _, err := database.CreatePhoto(h.DB, photoModel); err != nil {
+		return fmt.Errorf("Could not write image to database")
+	}
+
+	return nil
 }

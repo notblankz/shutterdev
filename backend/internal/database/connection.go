@@ -16,8 +16,6 @@ func InitDB(filepath string) *sql.DB {
 
 	createPhotosTableSQL := `CREATE TABLE IF NOT EXISTS photos (
 		"id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-		"title" TEXT,
-		"description" TEXT,
 		"image_url" TEXT,
 		"thumbnail_url" TEXT,
 		"thumbnail_width" INT,

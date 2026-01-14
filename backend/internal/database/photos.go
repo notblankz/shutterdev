@@ -13,8 +13,8 @@ func CreatePhoto(db *sql.DB, photo *models.Photo) (int64, error) {
 	defer tx.Rollback()
 
 	stmt, err := tx.Prepare(`
-		INSERT INTO photos (title, description, image_url, thumbnail_url, thumbnail_width, thumbnail_height, aperture, shutter_speed, iso, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO photos (image_url, thumbnail_url, thumbnail_width, thumbnail_height, aperture, shutter_speed, iso, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return 0, err
@@ -22,8 +22,6 @@ func CreatePhoto(db *sql.DB, photo *models.Photo) (int64, error) {
 	defer stmt.Close()
 
 	res, err := stmt.Exec(
-		photo.Title,
-		photo.Description,
 		photo.ImageURL,
 		photo.ThumbnailURL,
 		photo.ThumbWidth,
@@ -87,7 +85,7 @@ func CreatePhoto(db *sql.DB, photo *models.Photo) (int64, error) {
 func GetPhotoByID(db *sql.DB, id int) (*models.Photo, error) {
 	// SQL to get all the information of the Photo
 	selectPhotoSQL := `
-		SELECT id, title, description, image_url, thumbnail_url, aperture, shutter_speed, iso, created_at
+		SELECT id, image_url, thumbnail_url, aperture, shutter_speed, iso, created_at
 		FROM photos
 		WHERE id = ?
 	`
@@ -100,8 +98,6 @@ func GetPhotoByID(db *sql.DB, id int) (*models.Photo, error) {
 	// put the row that we got back from the db into the above placeholder
 	err := row.Scan(
 		&photo.ID,
-		&photo.Title,
-		&photo.Description,
 		&photo.ImageURL,
 		&photo.ThumbnailURL,
 		&photo.Exif.Aperture,
@@ -189,17 +185,6 @@ func GetAllPhotos(db *sql.DB, limit, offset int) ([]models.ThumbnailPhoto, error
 
 	return photoSlice, nil
 
-}
-
-func UpdatePhoto(db *sql.DB, photoID int, title, description string) error {
-	updatePhoto := `UPDATE photos SET title = ?, description = ? WHERE id = ?`
-
-	_, err := db.Exec(updatePhoto, title, description, photoID)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func DeletePhoto(db *sql.DB, photoID int) error {
