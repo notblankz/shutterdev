@@ -4,13 +4,38 @@
 
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "@/components/ui/card"
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+
+
 export default function AdminUploadPage() {
-    const [message, setMessage] = useState("")
-    const [time, setTime] = useState("")
+    const [isUploading, setIsUploading] = useState(false)
+    const [dialogOpen, setDialogOpen] = useState(false)
+    const [result, setResult] = useState({ message: "", time: "" })
 
     async function handleSubmit(e) {
         e.preventDefault()
-        const t0 = performance.now()
+
+        if (isUploading) return
+        setIsUploading(true)
+
+        const start = performance.now()
         const formData = new FormData(e.target);
 
         try {
@@ -24,116 +49,103 @@ export default function AdminUploadPage() {
 
             if (!res.ok) {
                 const err = await res.json()
-                setMessage("Error: " + err.error)
+                setResult({message: `Upload Failed due to Error (API): ${err.error}`, time: ""})
                 return;
             }
 
-            const t1 = performance.now()
+            const end = performance.now()
 
             const data = await res.json()
             console.log(data)
-            setMessage("YAY! Total Photos Uploaded Sucessfully: " + data)
-            setTime("Total Time Taken: " + (t1 - t0) / 1000)
-
+            setResult({message: `Upload Successfull! Total Images Uploaded: ${data.uploaded}`, time: `${((end - start) / 1000).toFixed(2)}s`})
+            setDialogOpen(true)
         } catch (error) {
-            setMessage("Oops! something went wrong while uploading the image")
-            console.log(error)
+            setResult({
+                message: `Upload failed due to Error: ${error}`,
+                time: "",
+            })
+            setDialogOpen(true)
+            console.error(error)
+        } finally {
+            setIsUploading(false)
         }
     }
     return (
         <div className="max-w-xl mx-auto mt-10 px-4">
-            <h1 className="text-2xl font-semibold mb-6">
-                Upload a Photo
-            </h1>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-3xl text-center">
+                        Upload Photos
+                    </CardTitle>
+                </CardHeader>
 
-            <form className="space-y-5" method="POST" onSubmit={handleSubmit}>
-                {/* Image */}
-                <div>
-                    <label className="block text-sm font-medium mb-1">
-                        Image File
-                    </label>
-                    <input
-                        type="file"
-                        name="image"
-                        required
-                        className="block w-full text-sm file:mr-4 file:py-2 file:px-4
-                        file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700
-                        hover:file:bg-gray-200"
-                        multiple
-                    />
-                </div>
+                <CardContent>
+                    <form
+                        className="space-y-5"
+                        method="POST"
+                        onSubmit={handleSubmit}
+                    >
+                        {/* Image */}
+                        <div className="space-y-1">
+                            <Label className="pb-2">
+                                Image File
+                            </Label>
+                            <Input
+                                type="file"
+                                name="image"
+                                required
+                                multiple
+                            />
+                        </div>
 
-                {/* Title */}
-                <div>
-                    <label className="block text-sm font-medium mb-1">
-                        Title
-                    </label>
-                    <input
-                        type="text"
-                        name="title"
-                        required
-                        className="w-full rounded-md border border-gray-300
-                       px-3 py-2 text-sm
-                       focus:outline-none focus:ring-2
-                       focus:ring-black"
-                    />
-                </div>
+                        {/* Tags */}
+                        <div className="space-y-1">
+                            <Label className="pb-2">
+                                Tags (comma separated)
+                            </Label>
+                            <Input
+                                type="text"
+                                name="tags"
+                                placeholder="e.g. nature, beach, sunset"
+                            />
+                        </div>
 
-                {/* Description */}
-                <div>
-                    <label className="block text-sm font-medium mb-1">
-                        Description
-                    </label>
-                    <textarea
-                        name="description"
-                        rows="3"
-                        className="w-full rounded-md border border-gray-300
-                       px-3 py-2 text-sm
-                       focus:outline-none focus:ring-2
-                       focus:ring-black"
-                    />
-                </div>
+                        {/* Submit */}
+                        <Button
+                            disabled={isUploading} variant="default" className="w-full"
+                        >
+                            {isUploading && <Spinner />}
+                            {isUploading ? "Uploading..." : "Upload"}
+                        </Button>
+                    </form>
 
-                {/* Tags */}
-                <div>
-                    <label className="block text-sm font-medium mb-1">
-                        Tags (comma separated)
-                    </label>
-                    <input
-                        type="text"
-                        name="tags"
-                        placeholder="e.g. nature, beach, sunset"
-                        className="w-full rounded-md border border-gray-300
-                       px-3 py-2 text-sm
-                       placeholder-gray-400
-                       focus:outline-none focus:ring-2
-                       focus:ring-black"
-                    />
-                </div>
+                    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle className="text-2xl">
+                                    Upload Status
+                                </DialogTitle>
+                            </DialogHeader>
 
-                {/* Submit */}
-                <button
-                    type="submit"
-                    className="inline-flex items-center
-                     rounded-md bg-black px-5 py-2
-                     text-sm font-medium text-white
-                     hover:bg-gray-800
-                     focus:outline-none focus:ring-2
-                     focus:ring-black"
-                >
-                    Upload
-                </button>
-            </form>
-            {message && (
-                <p style={{ marginTop: 20 }}>
-                    {message}
-                </p>
-            )}
-            {time && (
-                <p style={{ marginTop: 10 }}>
-                    {time}
-                </p>
-            )}
+                            {result.message}
+                            {result.time && (
+                            <div className="text-sm text-gray-500">
+                                Time taken: {result.time}
+                            </div>
+                            )}
+
+                            <DialogFooter>
+                                <Button
+                                    onClick={() => setDialogOpen(false)}
+                                >
+                                    Close
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </CardContent>
+            </Card>
         </div>
+
     )
 }

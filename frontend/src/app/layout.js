@@ -1,5 +1,5 @@
 import "./globals.css";
-
+import { ThemeProvider } from "@/components/theme-provider"
 
 export const metadata = {
     title: "Shutterdev",
@@ -8,9 +8,18 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
     return (
-        <html lang="en">
+        <html lang="en" suppressHydrationWarning>
             <link rel="preconnect" href={`${process.env.R2_BUCKET_PUBLIC_URL}`}/>
-            <body className="bg-[#1A1A1D]">{children}</body>
+            <body>
+                <ThemeProvider
+                    attribute="class"
+                    defaultTheme="system"
+                    enableSystem
+                    disableTransitionOnChange
+                >
+                    {children}
+                </ThemeProvider>
+            </body>
         </html>
     );
 }
