@@ -1,0 +1,35 @@
+import { Button } from "./ui/button"
+
+export default function PhotoDetail({ photo }) {
+  return (
+    <div className="flex flex-col h-full">
+      {/* Image area */}
+      <div className="flex-1 flex items-center justify-center overflow-hidden p-6">
+        <img
+          src={photo.imageUrl}
+          alt=""
+          className="max-w-full max-h-full object-contain select-none"
+        />
+      </div>
+
+      {/* Metadata bar */}
+      <div className="shrink-0 w-full p-4 border-t bg-background flex justify-between items-center">
+        <div className="text-[#b3b3b3] text-sm tracking-wide">
+          {photo.exif.shutterSpeed} &middot; {photo.exif.aperture} &middot; ISO{photo.exif.iso}
+        </div>
+
+        <div className="flex gap-2">
+          {(photo.tags ?? []).map(tag => (
+            <Button
+              key={tag.id}
+              className="bg-[#1a1a1a] text-[#e5e5e5] border border-white/10"
+              disabled
+            >
+              {tag.tagName}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
