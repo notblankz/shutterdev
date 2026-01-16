@@ -3,25 +3,29 @@ package database
 import (
 	"database/sql"
 	"shutterdev/backend/internal/models"
+
+	"github.com/google/uuid"
 )
 
-func CreatePhoto(db *sql.DB, photo *models.Photo) (int64, error) {
+func CreatePhoto(db *sql.DB, photo *models.Photo) (string, error) {
 	tx, err := db.Begin()
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	defer tx.Rollback()
 
 	stmt, err := tx.Prepare(`
-		INSERT INTO photos (image_url, thumbnail_url, thumbnail_width, thumbnail_height, aperture, shutter_speed, iso, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO photos (id, image_url, thumbnail_url, thumbnail_width, thumbnail_height, aperture, shutter_speed, iso, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	defer stmt.Close()
 
-	res, err := stmt.Exec(
+	id := uuid.New()
+	_, err = stmt.Exec(
+		id.String(),
 		photo.ImageURL,
 		photo.ThumbnailURL,
 		photo.ThumbWidth,
@@ -32,13 +36,13 @@ func CreatePhoto(db *sql.DB, photo *models.Photo) (int64, error) {
 		photo.CreatedAt,
 	)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
-	photoID, err := res.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
+	// photoID, err := res.LastInsertId()
+	// if err != nil {
+	// 	return 0, err
+	// }
 
 	for _, tag := range photo.Tags {
 		var tagID int64
@@ -47,42 +51,41 @@ func CreatePhoto(db *sql.DB, photo *models.Photo) (int64, error) {
 			// Tag doesn't exist, so create it
 			tagStmt, err := tx.Prepare("INSERT INTO tags (name) VALUES (?)")
 			if err != nil {
-				return 0, err // Can't prepare the statement
+				return "", err // Can't prepare the statement
 			}
 			// Defer close inside the loop for safety
 			defer tagStmt.Close()
 
 			tagRes, err := tagStmt.Exec(tag.Name)
 			if err != nil {
-				return 0, err
+				return "", err
 			}
 
-			// THE FIX IS HERE: Use `=` to assign to the existing tagID
 			tagID, err = tagRes.LastInsertId()
 			if err != nil {
-				return 0, err
+				return "", err
 			}
 
 		} else if err != nil {
 			// A different, unexpected error occurred
-			return 0, err
+			return "", err
 		}
 
 		// Now, link the photo and the tag
-		_, err = tx.Exec("INSERT INTO photo_tags (photo_id, tag_id) VALUES (?, ?)", photoID, tagID)
+		_, err = tx.Exec("INSERT INTO photo_tags (photo_id, tag_id) VALUES (?, ?)", id.String(), tagID)
 		if err != nil {
-			return 0, err
+			return "", err
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return 0, err
+		return "", err
 	}
 
-	return photoID, nil
+	return id.String(), nil
 }
 
-func GetPhotoByID(db *sql.DB, id int) (*models.Photo, error) {
+func GetPhotoByID(db *sql.DB, id string) (*models.Photo, error) {
 	// SQL to get all the information of the Photo
 	selectPhotoSQL := `
 		SELECT id, image_url, thumbnail_url, aperture, shutter_speed, iso, created_at
@@ -187,7 +190,7 @@ func GetAllPhotos(db *sql.DB, limit, offset int) ([]models.ThumbnailPhoto, error
 
 }
 
-func DeletePhoto(db *sql.DB, photoID int) error {
+func DeletePhoto(db *sql.DB, photoID string) error {
 	// remove the photoID from the photo_tags table
 	// finally remove the photoID row from photos table
 	// perform all this in a transaction to either delete both or delete none

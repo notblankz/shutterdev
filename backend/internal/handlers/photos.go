@@ -40,6 +40,7 @@ func (h *PhotoHandler) GetAllPhotos(c *gin.Context) {
 	photos, err := database.GetAllPhotos(h.DB, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch photos"})
+		fmt.Println(err)
 		return
 	}
 
@@ -49,13 +50,13 @@ func (h *PhotoHandler) GetAllPhotos(c *gin.Context) {
 // GET /api/photos/:id
 func (h *PhotoHandler) GetPhotoByID(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Photo ID"})
-		return
-	}
+	// id, err := strconv.Atoi(idStr)
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Photo ID"})
+	// 	return
+	// }
 
-	photo, err := database.GetPhotoByID(h.DB, id)
+	photo, err := database.GetPhotoByID(h.DB, idStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to Fetch photo"})
 		return
@@ -107,14 +108,14 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 // DELETE /api/admin/photos/:id
 func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		log.Println(err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid photo ID"})
-		return
-	}
+	// id, err := strconv.Atoi(idStr)
+	// if err != nil {
+	// 	log.Println(err)
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid photo ID"})
+	// 	return
+	// }
 
-	photo, err := database.GetPhotoByID(h.DB, id)
+	photo, err := database.GetPhotoByID(h.DB, idStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch photo for deletion"})
 		return
@@ -146,7 +147,7 @@ func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 		}
 	}
 
-	dbErr := database.DeletePhoto(h.DB, id)
+	dbErr := database.DeletePhoto(h.DB, idStr)
 	if dbErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error while deleting photo from database"})
 		log.Println(dbErr)

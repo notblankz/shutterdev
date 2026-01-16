@@ -9,7 +9,7 @@ type Exif struct {
 }
 
 type Photo struct {
-	ID           int       `json:"id"`
+	ID           string    `json:"id"`
 	ImageURL     string    `json:"imageUrl"`
 	ThumbnailURL string    `json:"thumbnailUrl"`
 	ThumbWidth   int       `json:"thumbWidth"`
@@ -19,10 +19,9 @@ type Photo struct {
 	CreatedAt    time.Time `json:"createdAt"`
 }
 
-
 type ThumbnailPhoto struct {
-	ID           int       `json:"id"`
-	ThumbnailURL string    `json:"thumbnailUrl"`
-	ThumbWidth   int       `json:"thumbWidth"`
-	ThumbHeight  int       `json:"thumbHeight"`
+	ID           string `json:"id"`
+	ThumbnailURL string `json:"thumbnailUrl"`
+	ThumbWidth   int    `json:"thumbWidth"`
+	ThumbHeight  int    `json:"thumbHeight"`
 }

@@ -15,7 +15,7 @@ func InitDB(filepath string) *sql.DB {
 	log.Println("Database connected successfully")
 
 	createPhotosTableSQL := `CREATE TABLE IF NOT EXISTS photos (
-		"id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+		"id" TEXT NOT NULL PRIMARY KEY,
 		"image_url" TEXT,
 		"thumbnail_url" TEXT,
 		"thumbnail_width" INT,
@@ -32,7 +32,7 @@ func InitDB(filepath string) *sql.DB {
 	);`
 
 	createPhotoTagsTableSQL := `CREATE TABLE IF NOT EXISTS photo_tags (
-		"photo_id" INTEGER,
+		"photo_id" TEXT,
 		"tag_id" INTEGER,
 		FOREIGN KEY(photo_id) REFERENCES photos(id),
 		FOREIGN KEY(tag_id) REFERENCES tags(id),
