@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Masonry from '@mui/lab/Masonry';
+import { useRouter } from "next/navigation";
 
 const LIMIT = 20
 const shimmer = (w, h) => `
@@ -30,6 +31,7 @@ export default function TestGalleryPage() {
 
     const [offset, setOffset] = useState(0);
     const [photos, setPhotos] = useState([]);
+    const router = useRouter()
 
     useEffect(() => {
         async function fetchData() {
@@ -59,10 +61,11 @@ export default function TestGalleryPage() {
     return (
         // TOOD: implement pagination
         <div className="flex justify-center items-center px-40 py-10">
+            {/* TODO: make masonry responsive */}
             <Masonry columns={3} spacing={2}>
-                {photos.map((photo, index) => (
+                {photos.map((photo) => (
                     <Image
-                        key={index}
+                        key={photo.id}
                         src={photo.thumbnailUrl}
                         width={photo.thumbWidth}
                         height={photo.thumbHeight}
@@ -71,6 +74,7 @@ export default function TestGalleryPage() {
                         placeholder={`data:image/svg+xml;base64,${toBase64(shimmer(photo.thumbWidth, photo.thumbHeight))}`}
                         preload={true}
                         unoptimized // TODO: check perf diff between unoptimised and optimised
+                        onClick={() => router.push(`/photos/${photo.id}`, {scroll: false})}
                     />
                 ))}
             </Masonry>

@@ -6,7 +6,7 @@ export const metadata = {
     description: "Self-hosted photo gallery",
 };
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children, modal }) {
     return (
         <html lang="en" suppressHydrationWarning>
             <link rel="preconnect" href={`${process.env.R2_BUCKET_PUBLIC_URL}`}/>
@@ -18,6 +18,7 @@ export default function RootLayout({ children }) {
                     disableTransitionOnChange
                 >
                     {children}
+                    {modal}
                 </ThemeProvider>
             </body>
         </html>
