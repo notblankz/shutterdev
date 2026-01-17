@@ -20,8 +20,14 @@ type Photo struct {
 }
 
 type ThumbnailPhoto struct {
-	ID           string `json:"id"`
-	ThumbnailURL string `json:"thumbnailUrl"`
-	ThumbWidth   int    `json:"thumbWidth"`
-	ThumbHeight  int    `json:"thumbHeight"`
+	ID           string    `json:"id"`
+	ThumbnailURL string    `json:"thumbnailUrl"`
+	ThumbWidth   int       `json:"thumbWidth"`
+	ThumbHeight  int       `json:"thumbHeight"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+type Cursor struct {
+	CreatedAt time.Time `json:"created_at"`
+	ID        string    `json:"id"`
 }

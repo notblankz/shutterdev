@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -12,7 +14,6 @@ import (
 	"shutterdev/backend/internal/database"
 	"shutterdev/backend/internal/models"
 	"shutterdev/backend/internal/services"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,12 +33,47 @@ func NewPhotoHandler(db *sql.DB, r2 *services.R2Service) *PhotoHandler {
 	}
 }
 
-// GET /api/photos?limit=x&offset=x
+// GET /api/photos?cursor=x (x is base64 string of json)
 func (h *PhotoHandler) GetAllPhotos(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	// TODO: Find optimal limit value
+	const LIMIT = 10
+	var err error
+	cursor := c.Query("cursor")
+	decodedCursor, err := base64.StdEncoding.DecodeString(cursor)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode from Base64"})
+		log.Println(err)
+		return
+	}
 
-	photos, err := database.GetAllPhotos(h.DB, limit, offset)
+	log.Println("[DECODED CURSOR] " + string(decodedCursor))
+
+	if string(decodedCursor) == "" {
+		photos, err := database.GetAllPhotos(h.DB, time.Time{}, "", LIMIT)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch photos"})
+			return
+		}
+
+		c.JSON(http.StatusOK, photos)
+		return
+	}
+
+	var cursorObtained struct {
+		CreatedAt time.Time `json:"created_at"`
+		ID        string    `json:"id"`
+	}
+
+	err = json.Unmarshal([]byte(decodedCursor), &cursorObtained)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not parse JSON"})
+		log.Println(err)
+		return
+	}
+
+	log.Println("[CURSOR: created_at]" + (cursorObtained.CreatedAt).String())
+	log.Println("[CURSOR: ID]" + cursorObtained.ID)
+	photos, err := database.GetAllPhotos(h.DB, cursorObtained.CreatedAt, cursorObtained.ID, LIMIT)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch photos"})
 		fmt.Println(err)

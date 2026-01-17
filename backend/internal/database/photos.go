@@ -3,9 +3,16 @@ package database
 import (
 	"database/sql"
 	"shutterdev/backend/internal/models"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+type PhotosResponse struct {
+	Photos     []models.ThumbnailPhoto `json:"photos"`
+	NextCursor models.Cursor           `json:"nextCursor"`
+	HasMore    bool                    `json:"hasMore"`
+}
 
 func CreatePhoto(db *sql.DB, photo *models.Photo) (string, error) {
 	tx, err := db.Begin()
@@ -149,23 +156,39 @@ func GetPhotoByID(db *sql.DB, id string) (*models.Photo, error) {
 	return &photo, nil
 }
 
-func GetAllPhotos(db *sql.DB, limit, offset int) ([]models.ThumbnailPhoto, error) {
-	//  Query the Photos table to get the next set of photos (pagination is implemented via the Offset and Limit)
-	selectAllPhotos := `
-	SELECT id, thumbnail_url, thumbnail_width, thumbnail_height
-	FROM Photos
-	ORDER BY created_at DESC
-	LIMIT ? OFFSET ?`
+func GetAllPhotos(db *sql.DB, createdAt time.Time, id string, LIMIT int) (PhotosResponse, error) {
 
-	rows, err := db.Query(selectAllPhotos, limit, offset)
-	if err != nil {
-		return nil, err
+	var response PhotosResponse
+	var rows *sql.Rows
+	var err error
+	var selectAllPhotos string
+	if createdAt.IsZero() {
+		selectAllPhotos = `
+		SELECT id, thumbnail_url, thumbnail_width, thumbnail_height, created_at
+		FROM Photos
+		ORDER BY created_at DESC
+		LIMIT ?`
+		rows, err = db.Query(selectAllPhotos, LIMIT)
+		if err != nil {
+			return PhotosResponse{}, err
+		}
+		defer rows.Close()
+	} else {
+		selectAllPhotos = `
+		SELECT id, thumbnail_url, thumbnail_width, thumbnail_height, created_at
+		FROM Photos
+		WHERE (created_at < ?) OR (created_at = ? AND id < ?)
+		ORDER BY created_at DESC, id DESC
+		LIMIT ?`
+		rows, err = db.Query(selectAllPhotos, createdAt, createdAt, id, LIMIT)
+		if err != nil {
+			return PhotosResponse{}, err
+		}
+		defer rows.Close()
 	}
-	defer rows.Close()
 
-	photoSlice := make([]models.ThumbnailPhoto, 0, limit)
+	photoSlice := make([]models.ThumbnailPhoto, 0, LIMIT)
 
-	// add the received rows as an entry in the Map with the skeleton -> photoID: &models.Photo <- This is a pointer so that we can make changes
 	for rows.Next() {
 		var photoThumbnail models.ThumbnailPhoto
 		err := rows.Scan(
@@ -173,19 +196,32 @@ func GetAllPhotos(db *sql.DB, limit, offset int) ([]models.ThumbnailPhoto, error
 			&photoThumbnail.ThumbnailURL,
 			&photoThumbnail.ThumbWidth,
 			&photoThumbnail.ThumbHeight,
+			&photoThumbnail.CreatedAt,
 		)
 		if err != nil {
-			return nil, err
+			return PhotosResponse{}, err
 		}
 		// append the models.Photo to the photoSlice
 		photoSlice = append(photoSlice, photoThumbnail)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return PhotosResponse{}, err
 	}
 
-	return photoSlice, nil
+	response.Photos = photoSlice
+
+	if len(photoSlice) > 0 {
+		last := photoSlice[len(photoSlice)-1]
+		response.NextCursor = models.Cursor{
+			ID:        last.ID,
+			CreatedAt: last.CreatedAt,
+		}
+	}
+
+	response.HasMore = (len(photoSlice) == LIMIT)
+
+	return response, nil
 
 }
 
