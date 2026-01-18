@@ -6,10 +6,9 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Masonry from '@mui/lab/Masonry';
 import { useRouter } from "next/navigation";
-import { useInView } from "react-intersection-observer";
+import InfiniteScroll from "react-infinite-scroll-component";
 import { Spinner } from "@/components/ui/spinner";
 
-const LIMIT = 20
 const shimmer = (w, h) => `
 <svg width="${w}" height="${h}" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
   <defs>
@@ -44,15 +43,22 @@ async function fetchNextPage(cursor) {
     }
 }
 
+function LoadingSpinner() {
+    return (
+        <div className="flex justify-center items-center gap-3 mt-8">
+            <Spinner className="size-6 mt-1 text-neutral-600"/>
+            <h1 className="text-2xl text-neutral-600">Loading...</h1>
+        </div>
+    )
+}
+
 export default function TestGalleryPage() {
 
-    const [initialized, setInitialized] = useState(false)
     const [photos, setPhotos] = useState([]);
     const [cursor, setCursor] = useState(null)
     const [hasMore, setHasMore] = useState(false)
     const [loading, setLoading] = useState(false)
     const router = useRouter()
-    const [inViewRef, inView] = useInView()
 
     useEffect(() => {
         let cancelled = false
@@ -62,7 +68,6 @@ export default function TestGalleryPage() {
             setPhotos(page.photos)
             setCursor(page.nextCursor)
             setHasMore(page.hasMore)
-            setInitialized(true)
         }
         loadInitialPage()
 
@@ -72,43 +77,55 @@ export default function TestGalleryPage() {
         }
     }, []);
 
-    useEffect(() => {
-        if (inView && hasMore && !loading) {
-            async function loadNextPage() {
-                setLoading(true)
-                const page = await fetchNextPage(cursor)
-                setPhotos(prev => [...prev, ...page.photos])
-                setCursor(page.nextCursor)
-                setHasMore(page.hasMore)
-                setLoading(false)
-            }
-            loadNextPage()
-        }
-    }, [inView, cursor, hasMore])
+    async function loadNextPage() {
+        if (loading || !hasMore) return;
 
+        setLoading(true);
+
+        const page = await fetchNextPage(cursor);
+        if (!page) {
+            setHasMore(false);
+            setLoading(false);
+            return;
+        }
+
+        setPhotos(prev => [...prev, ...page.photos]);
+        setCursor(page.nextCursor);
+        setHasMore(page.hasMore);
+
+        setLoading(false);
+    }
 
     return (
-        // TOOD: implement pagination
         <div className="flex flex-col px-40 py-10 w-full">
-            {/* TODO: make masonry responsive */}
-            <Masonry columns={3} spacing={2}>
-                {photos.map((photo) => (
-                    <Image
-                        key={photo.id}
-                        src={photo.thumbnailUrl}
-                        width={photo.thumbWidth}
-                        height={photo.thumbHeight}
-                        alt="photo by photographer" // TODO: add description as alt text
-                        className="rounded-md"
-                        placeholder={`data:image/svg+xml;base64,${toBase64(shimmer(photo.thumbWidth, photo.thumbHeight))}`}
-                        preload={true}
-                        unoptimized // TODO: check perf diff between unoptimised and optimised
-                        onClick={() => router.push(`/photos/${photo.id}`, {scroll: false})}
-                    />
-                ))}
-            </Masonry>
-            {initialized && hasMore && !loading && <Spinner ref={inViewRef} className="mt-8 size-6"/>}
+            <InfiniteScroll
+                dataLength={photos.length}
+                next={loadNextPage}
+                hasMore={hasMore}
+                loader={<LoadingSpinner/>}
+                scrollThreshold={0.7}
+                style={{ overflow: "visible" }}
+            >
+                <Masonry columns={3} spacing={2}>
+                    {photos.map(photo => (
+                        <Image
+                            key={photo.id}
+                            src={photo.thumbnailUrl}
+                            width={photo.thumbWidth}
+                            height={photo.thumbHeight}
+                            alt=""
+                            className="rounded-md cursor-pointer"
+                            placeholder={`data:image/svg+xml;base64,${toBase64(
+                                shimmer(photo.thumbWidth, photo.thumbHeight)
+                            )}`}
+                            unoptimized
+                            onClick={() =>
+                                router.push(`/photos/${photo.id}`, { scroll: false })
+                            }
+                        />
+                    ))}
+                </Masonry>
+            </InfiniteScroll>
         </div>
-
     )
 }
