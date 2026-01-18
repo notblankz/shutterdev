@@ -2,7 +2,7 @@ import { Button } from "./ui/button"
 
 export default function PhotoDetail({ photo }) {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full w-full">
       {/* Image area */}
       <div className="flex-1 flex items-center justify-center overflow-hidden p-6">
         <img
