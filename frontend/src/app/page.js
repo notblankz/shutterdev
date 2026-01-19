@@ -29,21 +29,6 @@ const toBase64 = (str) =>
         ? Buffer.from(str).toString("base64")
         : window.btoa(str);
 
-async function fetchNextPage(cursor) {
-    try {
-        var requestLink = process.env.NEXT_PUBLIC_API_URL + (cursor ? `/api/photos?cursor=${btoa(JSON.stringify(cursor))}` : "/api/photos")
-        const res = await fetch(requestLink, {method: "GET"})
-        if (!res.ok) {
-            const err = await res.json()
-            console.log(err)
-        }
-        const page = await res.json()
-        return page
-    } catch (e) {
-        console.log(e)
-    }
-}
-
 function LoadingSpinner() {
     return (
         <div className="flex justify-center items-center gap-3 mt-8">
@@ -55,13 +40,13 @@ function LoadingSpinner() {
 
 export default function TestGalleryPage() {
 
-    // const [photos, setPhotos] = useState([]);
     const photos = usePhotosStore((state) => state.photos)
     const appendPhotos = usePhotosStore((state) => state.appendPhotos)
     const resetPhotos = usePhotosStore((state) => state.resetPhotos)
-    const [cursor, setCursor] = useState(null)
-    const [hasMore, setHasMore] = useState(false)
-    const [loading, setLoading] = useState(false)
+    const cursor = usePhotosStore((state) => state.cursor)
+    const hasMore = usePhotosStore((state) => state.hasMore)
+    const loading = usePhotosStore((state) => state.loading)
+    const fetchNextPage = usePhotosStore((state) => state.fetchNextPage)
     const router = useRouter()
 
     useEffect(() => {
@@ -70,10 +55,7 @@ export default function TestGalleryPage() {
             resetPhotos()
             const page = await fetchNextPage(null)
             if (cancelled || !page) return
-            // setPhotos(page.photos)
             appendPhotos(page.photos)
-            setCursor(page.nextCursor)
-            setHasMore(page.hasMore)
         }
         loadInitialPage()
 
@@ -86,21 +68,13 @@ export default function TestGalleryPage() {
     async function loadNextPage() {
         if (loading || !hasMore) return;
 
-        setLoading(true);
-
         const page = await fetchNextPage(cursor);
         if (!page) {
-            setHasMore(false);
-            setLoading(false);
             return;
         }
 
-        // setPhotos(prev => [...prev, ...page.photos]);
         appendPhotos(page.photos)
-        setCursor(page.nextCursor);
-        setHasMore(page.hasMore);
 
-        setLoading(false);
     }
 
     return (
