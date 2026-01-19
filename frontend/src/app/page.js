@@ -8,6 +8,7 @@ import Masonry from '@mui/lab/Masonry';
 import { useRouter } from "next/navigation";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { Spinner } from "@/components/ui/spinner";
+import { usePhotosStore } from "@/store";
 
 const shimmer = (w, h) => `
 <svg width="${w}" height="${h}" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -54,7 +55,10 @@ function LoadingSpinner() {
 
 export default function TestGalleryPage() {
 
-    const [photos, setPhotos] = useState([]);
+    // const [photos, setPhotos] = useState([]);
+    const photos = usePhotosStore((state) => state.photos)
+    const appendPhotos = usePhotosStore((state) => state.appendPhotos)
+    const resetPhotos = usePhotosStore((state) => state.resetPhotos)
     const [cursor, setCursor] = useState(null)
     const [hasMore, setHasMore] = useState(false)
     const [loading, setLoading] = useState(false)
@@ -63,9 +67,11 @@ export default function TestGalleryPage() {
     useEffect(() => {
         let cancelled = false
         async function loadInitialPage() {
+            resetPhotos()
             const page = await fetchNextPage(null)
             if (cancelled || !page) return
-            setPhotos(page.photos)
+            // setPhotos(page.photos)
+            appendPhotos(page.photos)
             setCursor(page.nextCursor)
             setHasMore(page.hasMore)
         }
@@ -89,7 +95,8 @@ export default function TestGalleryPage() {
             return;
         }
 
-        setPhotos(prev => [...prev, ...page.photos]);
+        // setPhotos(prev => [...prev, ...page.photos]);
+        appendPhotos(page.photos)
         setCursor(page.nextCursor);
         setHasMore(page.hasMore);
 

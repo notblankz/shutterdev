@@ -20,7 +20,7 @@ export default async function PhotoLightboxPage({ params }) {
     console.log("[SUCCESS] Received Photo with ID: " + photo.id)
 
     return (
-        <LightboxModal>
+        <LightboxModal id={photo.id}>
             <PhotoDetail photo={photo}></PhotoDetail>
         </LightboxModal>
     )
