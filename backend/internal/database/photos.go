@@ -95,7 +95,7 @@ func CreatePhoto(db *sql.DB, photo *models.Photo) (string, error) {
 func GetPhotoByID(db *sql.DB, id string) (*models.Photo, error) {
 	// SQL to get all the information of the Photo
 	selectPhotoSQL := `
-		SELECT id, image_url, aperture, shutter_speed, iso, created_at
+		SELECT id, image_url, thumbnail_url, aperture, shutter_speed, iso, created_at
 		FROM photos
 		WHERE id = ?
 	`
@@ -109,6 +109,7 @@ func GetPhotoByID(db *sql.DB, id string) (*models.Photo, error) {
 	err := row.Scan(
 		&photo.ID,
 		&photo.ImageURL,
+		&photo.ThumbnailURL,
 		&photo.Exif.Aperture,
 		&photo.Exif.ShutterSpeed,
 		&photo.Exif.ISO,
