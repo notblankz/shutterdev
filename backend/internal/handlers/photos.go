@@ -87,11 +87,6 @@ func (h *PhotoHandler) GetAllPhotos(c *gin.Context) {
 // GET /api/photos/:id
 func (h *PhotoHandler) GetPhotoByID(c *gin.Context) {
 	idStr := c.Param("id")
-	// id, err := strconv.Atoi(idStr)
-	// if err != nil {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Photo ID"})
-	// 	return
-	// }
 
 	photo, err := database.GetPhotoByID(h.DB, idStr)
 	if err != nil {
@@ -179,7 +174,6 @@ func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 		return h.R2Service.DeleteFile(ctx, webKey)
 	})
 
-	// 5. Schedule thumbnail deletion
 	g.Go(func() error {
 		thumbKey, err := getKeyFromURL(photo.ThumbnailURL)
 		if err != nil {
