@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog"
 
 
-export default function AdminUploadPage() {
+export default function AdminUploadSlot() {
     const [isUploading, setIsUploading] = useState(false)
     const [dialogOpen, setDialogOpen] = useState(false)
     const [result, setResult] = useState({ message: "", time: "" })
@@ -70,7 +70,7 @@ export default function AdminUploadPage() {
         }
     }
     return (
-        <div className="max-w-xl mx-auto mt-10 px-4">
+        <div className="max-w-xl mx-auto mt-10 mb-10 px-4">
             <Card>
                 <CardHeader>
                     <CardTitle className="text-3xl text-center">
