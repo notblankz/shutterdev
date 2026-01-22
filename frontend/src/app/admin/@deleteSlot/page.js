@@ -8,6 +8,7 @@ import { useEffect, useState } from "react"
 import { Shimmer, ToBase64 } from "@/components/shimmer";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useAdminStore } from "@/adminStore";
 
 export default function DeleteSlot() {
     const [photos, setPhotos] = useState([])
@@ -17,6 +18,8 @@ export default function DeleteSlot() {
     const [selected, setSelected] = useState(() => new Set());
     const [dialogOpen, setDialogOpen] = useState(false)
     const [deleting, setDeleting] = useState(false)
+    const invalidateDeleteSlot = useAdminStore((state) => state.invalidateDeleteSlot)
+    const setInvalidateDeleteSlot = useAdminStore((state) => state.setInvalidateDeleteSlot)
 
     function toggleSelect(id) {
         setSelected(prev => {
@@ -49,7 +52,8 @@ export default function DeleteSlot() {
         toast.success("Successfully deleted selected photos", { position: "top-right", description: `Total Photos Deleted: ${selected.size}` })
         setDeleting(false)
         setDialogOpen(false)
-        resetAndFetch()
+        // resetAndFetch()
+        setInvalidateDeleteSlot()
     }
 
     async function fetchFirstPage() {
@@ -103,9 +107,12 @@ export default function DeleteSlot() {
     }
 
     useEffect(() => {
-        console.log(hasMore)
         fetchFirstPage()
     }, [])
+
+    useEffect(() => {
+        resetAndFetch()
+    }, [invalidateDeleteSlot])
 
     return (
         // Vibe Coded Masterpiece of an UI

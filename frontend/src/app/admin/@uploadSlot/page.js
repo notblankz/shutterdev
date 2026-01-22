@@ -3,6 +3,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAdminStore } from "@/adminStore";
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +28,7 @@ export default function AdminUploadSlot() {
     const [isUploading, setIsUploading] = useState(false)
     const [dialogOpen, setDialogOpen] = useState(false)
     const [result, setResult] = useState({ message: "", time: "" })
+    const setInvalidateDeleteSlot = useAdminStore((state) => state.setInvalidateDeleteSlot)
 
     async function handleSubmit(e) {
         e.preventDefault()
@@ -135,7 +137,10 @@ export default function AdminUploadSlot() {
 
                             <DialogFooter>
                                 <Button
-                                    onClick={() => setDialogOpen(false)}
+                                    onClick={() => {
+                                        setInvalidateDeleteSlot()
+                                        setDialogOpen(false)
+                                    }}
                                 >
                                     Close
                                 </Button>
