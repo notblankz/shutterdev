@@ -161,6 +161,32 @@ func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 		deleteCounter++
 	}
 
+	tx, err := h.DB.Begin()
+	if err != nil {
+		log.Printf("[ERROR]: Could not start transaction to delete orphaned tags - %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not start a transaction to delete orphaned tags"})
+		return
+	}
+	defer tx.Rollback()
+	removeOrphanTags := `
+	DELETE FROM tags
+		WHERE id IN (
+			SELECT t.id
+			FROM tags t
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM photo_tags pt
+				WHERE pt.tag_id = t.id
+			)
+		);`
+	_, orphanTagsErr := tx.Exec(removeOrphanTags)
+	if orphanTagsErr != nil {
+		log.Printf("[ERROR]: Could not delete orphaned tags - %v", orphanTagsErr)
+		return
+	}
+	tx.Commit()
+	log.Printf("[DELETE:SUCCESS]: Successfully removed orphaned tags")
+
 	c.JSON(http.StatusOK, gin.H{"deleted": deleteCounter})
 }
 
@@ -270,6 +296,7 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 	return nil
 }
 
+// TODO: delete source of truth (DB record first) then delete the R2 bucket urls
 func (h *PhotoHandler) deleteSingleImage(c *gin.Context, idStr string) error {
 	photo, err := database.GetPhotoByID(h.DB, idStr)
 	if err != nil {
@@ -279,9 +306,14 @@ func (h *PhotoHandler) deleteSingleImage(c *gin.Context, idStr string) error {
 		return fmt.Errorf("Photo not found")
 	}
 
-	log.Printf("[DELETE]: Received Photo to delete: %s", photo.ID)
-	log.Printf("[DELETE]: High-Res URL: %s", photo.ImageURL)
-	log.Printf("[DELETE]: Thumbnail URL: %s", photo.ThumbnailURL)
+	log.Printf("[DELETE:INFO]: Received Photo to delete: %s", photo.ID)
+
+	if err := database.DeletePhoto(h.DB, idStr); err != nil {
+		log.Printf("[ERROR]: Failed to delete photo from database: %s", err.Error())
+		return fmt.Errorf("Failed to delete photo record")
+	}
+
+	log.Printf("[DELETE:SUCCESS]: Deleted Photo Row from DB")
 
 	ctx := c.Request.Context()
 
@@ -322,10 +354,6 @@ func (h *PhotoHandler) deleteSingleImage(c *gin.Context, idStr string) error {
 		return fmt.Errorf("Failed to delete image files from R2")
 	}
 
-	if err := database.DeletePhoto(h.DB, idStr); err != nil {
-		log.Printf("[ERROR]: Failed to delete photo from database: %s", err.Error())
-		return fmt.Errorf("Failed to delete photo record")
-	}
-
+	log.Println("[DELETE:SUCCESS]: Fully Deleted Photo with ID: " + photo.ID)
 	return nil
 }

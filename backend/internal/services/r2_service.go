@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -88,6 +89,7 @@ func (s *R2Service) DeleteFile(ctx context.Context, fileName string) error {
 		return fmt.Errorf("failed to delete file from R2: %w", err)
 	}
 
+	log.Printf("[DELETE:SUCCESS]: Successfully deleted %v from R2 Bucket (%v)", fileName, s.BucketName)
 	return nil
 }
 

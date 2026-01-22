@@ -14,6 +14,11 @@ func InitDB(filepath string) *sql.DB {
 	}
 	log.Println("Database connected successfully")
 
+	_, err = db.Exec("PRAGMA foreign_keys = ON;")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	createPhotosTableSQL := `CREATE TABLE IF NOT EXISTS photos (
 		"id" TEXT NOT NULL PRIMARY KEY,
 		"image_url" TEXT,
@@ -23,7 +28,7 @@ func InitDB(filepath string) *sql.DB {
 		"aperture" TEXT,
 		"shutter_speed" TEXT,
 		"iso" TEXT,
-		"created_at" DATETIME
+		"created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);`
 
 	createTagsTableSQL := `CREATE TABLE IF NOT EXISTS tags (
@@ -32,10 +37,10 @@ func InitDB(filepath string) *sql.DB {
 	);`
 
 	createPhotoTagsTableSQL := `CREATE TABLE IF NOT EXISTS photo_tags (
-		"photo_id" TEXT,
-		"tag_id" INTEGER,
-		FOREIGN KEY(photo_id) REFERENCES photos(id),
-		FOREIGN KEY(tag_id) REFERENCES tags(id),
+		"photo_id" TEXT NOT NULL,
+		"tag_id" INTEGER NOT NULL,
+		FOREIGN KEY(photo_id) REFERENCES photos(id) ON DELETE CASCADE,
+		FOREIGN KEY(tag_id) REFERENCES tags(id) ON DELETE RESTRICT,
 		PRIMARY KEY(photo_id, tag_id)
 	);`
 

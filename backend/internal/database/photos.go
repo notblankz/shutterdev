@@ -227,7 +227,6 @@ func GetAllPhotos(db *sql.DB, createdAt time.Time, id string, LIMIT int) (Photos
 }
 
 func DeletePhoto(db *sql.DB, photoID string) error {
-	// remove the photoID from the photo_tags table
 	// finally remove the photoID row from photos table
 	// perform all this in a transaction to either delete both or delete none
 	tx, err := db.Begin()
@@ -235,12 +234,6 @@ func DeletePhoto(db *sql.DB, photoID string) error {
 		return err
 	}
 	defer tx.Rollback()
-
-	removePhotoTags := `DELETE FROM photo_tags WHERE photo_id = ?`
-	_, photoTagsErr := tx.Exec(removePhotoTags, photoID)
-	if photoTagsErr != nil {
-		return photoTagsErr
-	}
 
 	removePhoto := `DELETE FROM photos WHERE id = ?`
 	_, photoErr := tx.Exec(removePhoto, photoID)
