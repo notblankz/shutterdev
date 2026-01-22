@@ -1,7 +1,7 @@
-export default function AdminLayout({ children, upload, deleteSlot }) {
+export default function AdminLayout({ children, uploadSlot, deleteSlot }) {
     return (
         <div>
-            { upload }
+            { uploadSlot }
             { deleteSlot }
         </div>
     )
