@@ -15,7 +15,7 @@ func RegisterRoutes(router *gin.Engine, h *PhotoHandler, userApiKey string) {
 		{
 			admin.Use(middleware.AuthMiddleware(userApiKey))
 			admin.POST("/photos", h.UploadPhoto)
-			admin.DELETE("/photos/:id", h.DeletePhoto)
+			admin.DELETE("/photos", h.DeletePhoto)
 		}
 	}
 }

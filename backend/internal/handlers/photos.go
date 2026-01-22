@@ -27,6 +27,10 @@ type PhotoHandler struct {
 	R2Service *services.R2Service
 }
 
+type DeleteRequest struct {
+	DeleteIDsArray []string `json:"DeleteIDs"`
+}
+
 func NewPhotoHandler(db *sql.DB, r2 *services.R2Service) *PhotoHandler {
 	return &PhotoHandler{
 		DB:        db,
@@ -137,73 +141,27 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 }
 
 // TODO: Implement delete all photos
-// DELETE /api/admin/photos/:id
+// DELETE /api/admin/photos
 func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
-	idStr := c.Param("id")
 
-	photo, err := database.GetPhotoByID(h.DB, idStr)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch photo for deletion"})
-		return
-	}
-	if photo == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Photo not found"})
-		return
-	}
+	var deleteRequest DeleteRequest
+	var deleteCounter int
 
-	log.Printf("[DELETE]: Received Photo to delete: %s", photo.ID)
-	log.Printf("[DELETE]: High-Res URL: %s", photo.ImageURL)
-	log.Printf("[DELETE]: Thumbnail URL: %s", photo.ThumbnailURL)
-
-	ctx := c.Request.Context()
-
-	g, ctx := errgroup.WithContext(ctx)
-
-	g.Go(func() error {
-		webKey, err := getKeyFromURL(photo.ImageURL)
-		if err != nil {
-			log.Printf("[ERROR]: Failed to parse webKey: %s", err.Error())
-			return fmt.Errorf("[ERROR]: Failed to parse webKey from Image URL")
-		}
-
-		if webKey == "" {
-			return fmt.Errorf("[ERROR]: webKey is empty so cannot proceed with deletion")
-		}
-
-		log.Printf("[DELETE]: Deleting high-res file: %s", webKey)
-		return h.R2Service.DeleteFile(ctx, webKey)
-	})
-
-	g.Go(func() error {
-		thumbKey, err := getKeyFromURL(photo.ThumbnailURL)
-		if err != nil {
-			log.Printf("[WARNING]: Failed to parse thumbKey: %s", err.Error())
-			return fmt.Errorf("[ERROR]: Failed to parse thumbKey from Thumbnail URL")
-		}
-
-		if thumbKey == "" {
-			return fmt.Errorf("[ERROR]: thumbKey is empty so cannot proceed with deletion")
-		}
-
-		log.Printf("[DELETE]: Deleting thumbnail file: %s", thumbKey)
-		return h.R2Service.DeleteFile(ctx, thumbKey)
-	})
-
-	if err := g.Wait(); err != nil {
-		log.Printf("[ERROR]: Failed deleting files from R2: %s", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete image files from R2"})
+	if bindError := c.ShouldBindJSON(&deleteRequest); bindError != nil {
+		log.Println("[ERROR]: Could not bind")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "booyah"})
 		return
 	}
 
-	if err := database.DeletePhoto(h.DB, idStr); err != nil {
-		log.Printf("[ERROR]: Failed to delete photo from database: %s", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete photo record"})
-		return
+	for _, photoID := range deleteRequest.DeleteIDsArray {
+		if err := h.deleteSingleImage(c, photoID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		deleteCounter++
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("Photo (%s) deleted successfully", photo.ID),
-	})
+	c.JSON(http.StatusOK, gin.H{"deleted": deleteCounter})
 }
 
 // <== Helper Functions ==>
@@ -307,6 +265,66 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 
 	if _, err := database.CreatePhoto(h.DB, photoModel); err != nil {
 		return fmt.Errorf("Could not write image to database")
+	}
+
+	return nil
+}
+
+func (h *PhotoHandler) deleteSingleImage(c *gin.Context, idStr string) error {
+	photo, err := database.GetPhotoByID(h.DB, idStr)
+	if err != nil {
+		return fmt.Errorf("Failed to fetch photo for deletion")
+	}
+	if photo == nil {
+		return fmt.Errorf("Photo not found")
+	}
+
+	log.Printf("[DELETE]: Received Photo to delete: %s", photo.ID)
+	log.Printf("[DELETE]: High-Res URL: %s", photo.ImageURL)
+	log.Printf("[DELETE]: Thumbnail URL: %s", photo.ThumbnailURL)
+
+	ctx := c.Request.Context()
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		webKey, err := getKeyFromURL(photo.ImageURL)
+		if err != nil {
+			log.Printf("[ERROR]: Failed to parse webKey: %s", err.Error())
+			return fmt.Errorf("[ERROR]: Failed to parse webKey from Image URL")
+		}
+
+		if webKey == "" {
+			return fmt.Errorf("[ERROR]: webKey is empty so cannot proceed with deletion")
+		}
+
+		log.Printf("[DELETE]: Deleting high-res file: %s", webKey)
+		return h.R2Service.DeleteFile(ctx, webKey)
+	})
+
+	g.Go(func() error {
+		thumbKey, err := getKeyFromURL(photo.ThumbnailURL)
+		if err != nil {
+			log.Printf("[WARNING]: Failed to parse thumbKey: %s", err.Error())
+			return fmt.Errorf("[ERROR]: Failed to parse thumbKey from Thumbnail URL")
+		}
+
+		if thumbKey == "" {
+			return fmt.Errorf("[ERROR]: thumbKey is empty so cannot proceed with deletion")
+		}
+
+		log.Printf("[DELETE]: Deleting thumbnail file: %s", thumbKey)
+		return h.R2Service.DeleteFile(ctx, thumbKey)
+	})
+
+	if err := g.Wait(); err != nil {
+		log.Printf("[ERROR]: Failed deleting files from R2: %s", err.Error())
+		return fmt.Errorf("Failed to delete image files from R2")
+	}
+
+	if err := database.DeletePhoto(h.DB, idStr); err != nil {
+		log.Printf("[ERROR]: Failed to delete photo from database: %s", err.Error())
+		return fmt.Errorf("Failed to delete photo record")
 	}
 
 	return nil
