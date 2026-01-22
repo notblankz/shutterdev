@@ -37,7 +37,7 @@ export const usePhotosStore = create((set, get) => ({
             }
             const page = await res.json()
             set((state) => ({
-                photos: [...state.photos, ...page.photos],
+                photos: (cursor ? [...state.photos, ...page.photos] : [...page.photos]),
                 cursor: page.nextCursor,
                 hasMore: page.hasMore,
                 loading: false
