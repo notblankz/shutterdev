@@ -2,13 +2,13 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Image from "next/image";
 import Masonry from '@mui/lab/Masonry';
 import { useRouter } from "next/navigation";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { Spinner } from "@/components/ui/spinner";
-import { usePhotosStore } from "@/store";
+import { usePhotosStore } from "@/galleryStore";
 import { Shimmer, ToBase64 } from "@/components/shimmer";
 
 function LoadingSpinner() {

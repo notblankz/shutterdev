@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogHeader, DialogTitle, DialogContent } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 import { ChevronsRight, ChevronsLeft } from "lucide-react";
-import { usePhotosStore } from "@/store";
+import { usePhotosStore } from "@/galleryStore";
 import { useRef, useEffect } from "react";
 import { Spinner } from "@/components/ui/spinner";
 
