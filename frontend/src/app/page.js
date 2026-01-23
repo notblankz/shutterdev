@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Masonry from '@mui/lab/Masonry';
 import { useRouter } from "next/navigation";
@@ -29,15 +29,18 @@ export default function TestGalleryPage() {
     const hasMore = usePhotosStore((state) => state.hasMore)
     const loading = usePhotosStore((state) => state.loading)
     const fetchNextPage = usePhotosStore((state) => state.fetchNextPage)
+    const [initialLoading, setInitialLoading] = useState(true)
     const router = useRouter()
 
     useEffect(() => {
         let cancelled = false
         async function loadInitialPage() {
+            setInitialLoading(true)
             resetPhotos()
-            const page = await fetchNextPage(null)
-            if (cancelled || !page) return
-            appendPhotos(page.photos)
+            await fetchNextPage(null)
+            if (!cancelled) {
+                setInitialLoading(false)
+            }
         }
         loadInitialPage()
 
@@ -60,8 +63,14 @@ export default function TestGalleryPage() {
     }
 
     return (
-        <div>
-            {(photos.length > 0) &&
+        <div className="w-full h-full">
+            {initialLoading && (
+                <div className="w-full flex items-center justify-center gap-2 py-2.5 md:py-5 lg:py-10 xl:py-10">
+                    <Spinner className="size-8 text-neutral-700"/>
+                    <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-neutral-700 font-medium">Loading Insane Images...</p>
+                </div>
+            )}
+            {!initialLoading && (photos.length > 0) && (
                 <div className="flex flex-col px-5 py-2.5 md:px-15 md:py-5 lg:px-20 lg:py-10 xl:px-30 xl:py-10 w-full">
                         <InfiniteScroll
                             dataLength={photos.length}
@@ -92,8 +101,11 @@ export default function TestGalleryPage() {
                                 ))}
                             </Masonry>
                         </InfiniteScroll>
-                </div>}
-            {(photos.length === 0) && <h1 className="text-3xl text-center text-neutral-600 mt-10">No Photos to Display</h1>}
+                </div>
+            )}
+            {!initialLoading && (photos.length === 0) && (
+                <h1 className="text-3xl text-center text-neutral-600 mt-10">No Photos to Display</h1>
+            )}
         </div>
     )
 }
