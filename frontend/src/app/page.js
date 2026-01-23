@@ -60,7 +60,7 @@ export default function TestGalleryPage() {
     }
 
     return (
-        <div className="flex flex-col px-40 py-10 w-full">
+        <div className="flex flex-col px-5 py-2.5 md:px-15 md:py-5 lg:px-20 lg:py-10 xl:px-30 xl:py-10 w-full">
             <InfiniteScroll
                 dataLength={photos.length}
                 next={loadNextPage}
@@ -68,8 +68,9 @@ export default function TestGalleryPage() {
                 loader={<LoadingSpinner/>}
                 scrollThreshold={0.7}
                 style={{ overflow: "visible" }}
+                className="flex flex-col justify-center items-center"
             >
-                <Masonry columns={3} spacing={2}>
+                <Masonry columns={{xs: 1, sm: 2, md:3, lg:3}} spacing={2}>
                     {photos.map(photo => (
                         <Image
                             key={photo.id}
