@@ -51,9 +51,8 @@ func (h *PhotoHandler) GetAllPhotos(c *gin.Context) {
 		return
 	}
 
-	log.Println("[DECODED CURSOR] " + string(decodedCursor))
-
 	if string(decodedCursor) == "" {
+		log.Println("[DECODED CURSOR] Decoded cursor is empty - requesting first page")
 		photos, err := database.GetAllPhotos(h.DB, time.Time{}, "", LIMIT)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch photos"})
@@ -63,6 +62,8 @@ func (h *PhotoHandler) GetAllPhotos(c *gin.Context) {
 		c.JSON(http.StatusOK, photos)
 		return
 	}
+
+	log.Println("[DECODED CURSOR] " + string(decodedCursor))
 
 	var cursorObtained struct {
 		CreatedAt time.Time `json:"created_at"`
