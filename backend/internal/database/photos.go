@@ -225,23 +225,3 @@ func GetAllPhotos(db *sql.DB, createdAt time.Time, id string, LIMIT int) (Photos
 	return response, nil
 
 }
-
-func DeletePhoto(db *sql.DB, photoID string) error {
-	// finally remove the photoID row from photos table
-	// perform all this in a transaction to either delete both or delete none
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	removePhoto := `DELETE FROM photos WHERE id = ?`
-	_, photoErr := tx.Exec(removePhoto, photoID)
-	if photoErr != nil {
-		return photoErr
-	}
-
-	// tx.Commit() itself returns an error if anything goes wrong
-	// if nothing goes wrong and everything is commited it is nil thats why we return tx.Commit()
-	return tx.Commit()
-}

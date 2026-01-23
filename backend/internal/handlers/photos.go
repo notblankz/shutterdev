@@ -146,29 +146,83 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 
 	var deleteRequest DeleteRequest
-	var deleteCounter int
-
 	if bindError := c.ShouldBindJSON(&deleteRequest); bindError != nil {
 		log.Println("[ERROR]: Could not bind")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "booyah"})
 		return
 	}
 
-	for _, photoID := range deleteRequest.DeleteIDsArray {
-		if err := h.deleteSingleImage(c, photoID); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		deleteCounter++
+	if len(deleteRequest.DeleteIDsArray) == 0 {
+		log.Println("[DELETE:ERROR]: 0 Photos recieved to delete")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "0 Photos recieved to delete"})
+		return
 	}
 
-	tx, err := h.DB.Begin()
+	tx, err := h.DB.BeginTx(c.Request.Context(), nil)
 	if err != nil {
-		log.Printf("[ERROR]: Could not start transaction to delete orphaned tags - %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not start a transaction to delete orphaned tags"})
+		log.Println("[DELETE:ERROR]: Could not start a transaction to delete")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not start a transaction to delete"})
 		return
 	}
 	defer tx.Rollback()
+
+	var fk int
+	tx.QueryRow("PRAGMA foreign_keys;").Scan(&fk)
+	log.Println("[INFO]: foreign_keys =", fk)
+
+	// Get snapshot of Rows to delete to maintain state
+	placeholders := make([]string, len(deleteRequest.DeleteIDsArray))
+	args := make([]any, len(deleteRequest.DeleteIDsArray))
+
+	for i, id := range deleteRequest.DeleteIDsArray {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	var snapshotRows []models.Photo
+
+	toDeleteSnapshot := fmt.Sprintf(`
+	SELECT id, image_url, thumbnail_url, created_at
+	FROM photos WHERE id IN (%s)`, strings.Join(placeholders, ","))
+
+	toDeleteRows, err := tx.QueryContext(c.Request.Context(), toDeleteSnapshot, args...)
+	if err != nil {
+		log.Println("[DELETE:ERROR]: An error occured while trying to query the Database to take a snapshot", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured while trying to query the Database to take a snapshot"})
+		return
+	}
+	defer toDeleteRows.Close()
+
+	for toDeleteRows.Next() {
+		var p models.Photo
+
+		if scanErr := toDeleteRows.Scan(
+			&p.ID,
+			&p.ImageURL,
+			&p.ThumbnailURL,
+			&p.CreatedAt,
+		); scanErr != nil {
+			log.Printf("[DELETE:ERROR] An error occured while scanning query output to structs - %v", scanErr)
+			c.JSON(http.StatusInternalServerError, "An error occured while scanning query output to structs")
+			return
+		}
+
+		snapshotRows = append(snapshotRows, p)
+	}
+
+	if err := toDeleteRows.Err(); err != nil {
+		log.Println("[DELETE:ERROR]: An error occured while reading the rows of Snapshot query into slice", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured while reading the rows of Snapshot query into slice"})
+		return
+	}
+
+	deletePhotos := fmt.Sprintf("DELETE FROM photos WHERE id IN (%s)", strings.Join(placeholders, ","))
+	if _, deleteErr := tx.ExecContext(c.Request.Context(), deletePhotos, args...); deleteErr != nil {
+		log.Printf("[DELETE:ERROR]: An error occured while trying to delete the photos from the DB - %v", deleteErr)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured while trying to delete the photos from the DB"})
+		return
+	}
+
 	removeOrphanTags := `
 	DELETE FROM tags
 		WHERE id IN (
@@ -180,15 +234,40 @@ func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 				WHERE pt.tag_id = t.id
 			)
 		);`
-	_, orphanTagsErr := tx.Exec(removeOrphanTags)
-	if orphanTagsErr != nil {
-		log.Printf("[ERROR]: Could not delete orphaned tags - %v", orphanTagsErr)
+	if _, orphanTagsErr := tx.Exec(removeOrphanTags); orphanTagsErr != nil {
+		log.Printf("[DELETE:ERROR]: Could not delete orphaned tags - %v", orphanTagsErr)
 		return
 	}
-	tx.Commit()
-	log.Printf("[DELETE:SUCCESS]: Successfully removed orphaned tags")
+	if commitErr := tx.Commit(); commitErr != nil {
+		log.Printf("[DELETE:ERROR] An error occured commiting the transaction to the Database - %v", commitErr)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured commiting the transaction to the Database"})
+		return
+	}
 
-	c.JSON(http.StatusOK, gin.H{"deleted": deleteCounter})
+	log.Printf("[DELETE:SUCCESS]: Successfully completed all deletions from Database")
+
+	var failedList []models.Photo
+	var blobDeleted int
+	for _, photo := range snapshotRows {
+		if err := h.deleteBlobs(photo.ImageURL, photo.ThumbnailURL, c); err != nil {
+			failedList = append(failedList, photo)
+			log.Println(err.Error())
+		} else {
+			blobDeleted++
+		}
+	}
+	// TODO: Persistent retry queue: add failed photos to failed_storage_deletes and poll them frequently
+
+	// TODO: add failed_list value in resp (maybe)
+	resp := gin.H{
+		"db_deleted": len(args),
+		"storage": gin.H{
+			"success": blobDeleted,
+			"failed":  len(failedList),
+		},
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // <== Helper Functions ==>
@@ -297,33 +376,12 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 	return nil
 }
 
-// TODO: delete source of truth (DB record first) then delete the R2 bucket urls
-func (h *PhotoHandler) deleteSingleImage(c *gin.Context, idStr string) error {
-	photo, err := database.GetPhotoByID(h.DB, idStr)
-	if err != nil {
-		return fmt.Errorf("Failed to fetch photo for deletion")
-	}
-	if photo == nil {
-		return fmt.Errorf("Photo not found")
-	}
-
-	log.Printf("[DELETE:INFO]: Received Photo to delete: %s", photo.ID)
-
-	if err := database.DeletePhoto(h.DB, idStr); err != nil {
-		log.Printf("[ERROR]: Failed to delete photo from database: %s", err.Error())
-		return fmt.Errorf("Failed to delete photo record")
-	}
-
-	log.Printf("[DELETE:SUCCESS]: Deleted Photo Row from DB")
-
-	ctx := c.Request.Context()
-
-	g, ctx := errgroup.WithContext(ctx)
+func (h *PhotoHandler) deleteBlobs(imageURL string, thumbnailURL string, c *gin.Context) error {
+	g, ctx := errgroup.WithContext(c.Request.Context())
 
 	g.Go(func() error {
-		webKey, err := getKeyFromURL(photo.ImageURL)
+		webKey, err := getKeyFromURL(imageURL)
 		if err != nil {
-			log.Printf("[ERROR]: Failed to parse webKey: %s", err.Error())
 			return fmt.Errorf("[ERROR]: Failed to parse webKey from Image URL")
 		}
 
@@ -336,9 +394,8 @@ func (h *PhotoHandler) deleteSingleImage(c *gin.Context, idStr string) error {
 	})
 
 	g.Go(func() error {
-		thumbKey, err := getKeyFromURL(photo.ThumbnailURL)
+		thumbKey, err := getKeyFromURL(thumbnailURL)
 		if err != nil {
-			log.Printf("[WARNING]: Failed to parse thumbKey: %s", err.Error())
 			return fmt.Errorf("[ERROR]: Failed to parse thumbKey from Thumbnail URL")
 		}
 
@@ -351,10 +408,8 @@ func (h *PhotoHandler) deleteSingleImage(c *gin.Context, idStr string) error {
 	})
 
 	if err := g.Wait(); err != nil {
-		log.Printf("[ERROR]: Failed deleting files from R2: %s", err.Error())
-		return fmt.Errorf("Failed to delete image files from R2")
+		return fmt.Errorf("Failed to delete image files from R2 - %v", err)
 	}
 
-	log.Println("[DELETE:SUCCESS]: Fully Deleted Photo with ID: " + photo.ID)
 	return nil
 }
