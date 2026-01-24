@@ -13,12 +13,12 @@ export default function PhotoDetail({ photo }) {
       </div>
 
       {/* Metadata bar */}
-      <div className="shrink-0 w-full p-4 border-t bg-background flex justify-between items-center">
-        <div className="text-[#b3b3b3] text-sm tracking-wide">
+      <div className="shrink-0 w-full p-4 border-t bg-background flex flex-col sm:flex-row justify-between items-center">
+        <div className="text-[#b3b3b3] text-sm tracking-wide pb-5 sm:pb-0">
           {photo.exif.shutterSpeed} &middot; {photo.exif.aperture} &middot; ISO{photo.exif.iso}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full items-center justify-center sm:w-auto sm:justify-start">
           {(photo.tags ?? []).map(tag => (
             <Button
               key={tag.id}

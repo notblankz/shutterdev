@@ -62,21 +62,32 @@ export default function LightboxModal({id, children}) {
                     router.back()
                 }
             }}>
-            <DialogContent className="w-[85vw] h-[95vh] max-w-none! p-0 overflow-hidden flex flex-col items-center justify-center gap-0">
+            <DialogContent
+            className="p-0 overflow-hidden flex flex-col
+                        w-screen h-screen max-w-none
+
+                        sm:w-[85vw] sm:h-[95vh]
+                        xl:w-[87vw]
+                        2xl:w-[89vw]
+
+                        sm:max-w-350
+                        xl:max-w-400
+                        2xl:max-w-500"
+            >
                 <DialogHeader className="hidden">
                         <DialogTitle className="text-2xl">
-                            Lightbox Showing single view of Image
+                            Photo Lightbox
                         </DialogTitle>
                 </DialogHeader>
                 {prev &&
-                    <Button variant="ghost" onClick={handlePrev} className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
+                    <Button variant="outline" onClick={handlePrev} className="absolute left-4 top-[81%] sm:top-[47%] -translate-y-1/2 z-10">
                         <ChevronsLeft/>
                     </Button>}
 
                 { children }
 
                 {(next || hasMore) &&
-                    <Button variant="ghost" onClick={handleNext} disabled={loading} className="absolute right-4 top-1/2 -translate-y-1/2 z-10">
+                    <Button variant="outline" onClick={handleNext} disabled={loading} className="absolute right-4 top-[81%] sm:top-[47%] -translate-y-1/2 z-10">
                         { !loading &&<ChevronsRight/>}
                         { loading && <Spinner/> }
                     </Button>}
