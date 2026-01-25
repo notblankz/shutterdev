@@ -10,6 +10,7 @@ import InfiniteScroll from "react-infinite-scroll-component";
 import { Spinner } from "@/components/ui/spinner";
 import { usePhotosStore } from "@/galleryStore";
 import { Shimmer, ToBase64 } from "@/components/shimmer";
+import { toast } from "sonner";
 
 function LoadingSpinner() {
     return (
@@ -62,6 +63,11 @@ export default function TestGalleryPage() {
 
     }
 
+    function handleRightClick(e) {
+        e.preventDefault()
+        toast.warning("Nice try :/", { position: "top-right" , description: "Downloads are disabled for this gallery"})
+    }
+
     return (
         <div className="w-full h-full">
             {initialLoading && (
@@ -97,6 +103,7 @@ export default function TestGalleryPage() {
                                         onClick={() =>
                                             router.push(`/photos/${photo.id}`, { scroll: false })
                                         }
+                                        onContextMenu={handleRightClick}
                                     />
                                 ))}
                             </Masonry>
