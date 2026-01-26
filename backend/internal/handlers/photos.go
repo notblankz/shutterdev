@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -40,7 +41,6 @@ func NewPhotoHandler(db *sql.DB, r2 *services.R2Service) *PhotoHandler {
 
 // GET /api/photos?cursor=x (x is base64 string of json)
 func (h *PhotoHandler) GetAllPhotos(c *gin.Context) {
-	// TODO: Find optimal limit value
 	const LIMIT = 10
 	var err error
 	cursor := c.Query("cursor")
@@ -107,7 +107,6 @@ func (h *PhotoHandler) GetPhotoByID(c *gin.Context) {
 }
 
 // TODO: optimize multiple image upload pipeline
-// TODO: add support for per image title, desc and tag selection during multiple image upload
 // POST /api/admin/photos
 func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 
@@ -257,6 +256,9 @@ func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 		}
 	}
 	// TODO: Persistent retry queue: add failed photos to failed_storage_deletes and poll them frequently
+	if len(failedList) != 0 {
+		database.AddToFailedStore(h.DB, c, failedList)
+	}
 
 	// TODO: add failed_list value in resp (maybe)
 	resp := gin.H{
@@ -265,6 +267,120 @@ func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 			"success": blobDeleted,
 			"failed":  len(failedList),
 		},
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// DELETE /api/admin/photos/failed
+func (h *PhotoHandler) NukeFailedBlobs(c *gin.Context) {
+
+	type FailedRow struct {
+		id       string
+		webURL   string
+		thumbURL string
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+	var retryList []FailedRow
+	var successList []string
+	var successCounter int
+
+	getFailedList := `SELECT id, web_url, thumbnail_url FROM failed_storage_deletes`
+	tx, err := h.DB.BeginTx(ctx, nil)
+	if err != nil {
+		log.Printf("An error occured when trying to start a new transaction - %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured when trying to start a new transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.QueryContext(ctx, getFailedList)
+	if err != nil {
+		log.Printf("An error occured querying to the database - %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured querying to the database"})
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var fr FailedRow
+		if err := rows.Scan(&fr.id, &fr.webURL, &fr.thumbURL); err != nil {
+			log.Printf("An error occured in trying to scan the rows from the QueryResult - %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured in trying to scan the rows from the QueryResult"})
+			return
+		}
+
+		retryList = append(retryList, fr)
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Printf("An error occured in reading Rows - %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured in reading Rows"})
+		return
+	}
+
+	if len(retryList) == 0 {
+		if err := tx.Commit(); err != nil {
+			log.Printf("commit failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "commit failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": 0,
+			"failed":  len(retryList),
+		})
+		return
+	}
+
+	for _, photo := range retryList {
+		if err := h.deleteBlobs(photo.webURL, photo.thumbURL, c); err != nil {
+			log.Printf("An error trying to delete the Photo (%s) - %v", photo.id, err)
+			continue
+		}
+		successList = append(successList, photo.id)
+		successCounter++
+	}
+
+	if len(successList) == 0 {
+		if err := tx.Commit(); err != nil {
+			log.Printf("commit failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "commit failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": 0,
+			"failed":  len(retryList),
+		})
+		return
+	}
+
+	placeholders := make([]string, len(successList))
+	args := make([]any, len(successList))
+
+	for i, id := range successList {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	deleteFromFailedStore := fmt.Sprintf(`DELETE FROM failed_storage_deletes WHERE id IN (%s)`, strings.Join(placeholders, ","))
+
+	_, deleteErr := tx.ExecContext(ctx, deleteFromFailedStore, args...)
+	if deleteErr != nil {
+		log.Printf("An error occured in trying to delete the succeeded rows from failed_storage_deletes - %v", deleteErr)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured in trying to delete the succeeded rows from failed_storage_deletes"})
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		log.Printf("commit failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "commit failed"})
+		return
+	}
+
+	resp := gin.H{
+		"success": successCounter,
+		"failed":  (len(retryList) - successCounter),
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -318,7 +434,6 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 	limitedReader := io.LimitReader(imageData, MaxUploadSize+1)
 
 	webImage, thumbImage, exifData, thumbWidth, thumbHeight, err := services.ProcessImage(limitedReader)
-	// TODO: make specific error handlers
 	if err != nil {
 		return fmt.Errorf("image processing failed")
 	}
@@ -377,9 +492,13 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 }
 
 func (h *PhotoHandler) deleteBlobs(imageURL string, thumbnailURL string, c *gin.Context) error {
+
 	g, ctx := errgroup.WithContext(c.Request.Context())
 
 	g.Go(func() error {
+		if imageURL == "" {
+			return fmt.Errorf("ImageURL received is Empty - skipping")
+		}
 		webKey, err := getKeyFromURL(imageURL)
 		if err != nil {
 			return fmt.Errorf("[ERROR]: Failed to parse webKey from Image URL")
@@ -394,6 +513,9 @@ func (h *PhotoHandler) deleteBlobs(imageURL string, thumbnailURL string, c *gin.
 	})
 
 	g.Go(func() error {
+		if thumbnailURL == "" {
+			return fmt.Errorf("ThumbnailURL received is Empty - skipping")
+		}
 		thumbKey, err := getKeyFromURL(thumbnailURL)
 		if err != nil {
 			return fmt.Errorf("[ERROR]: Failed to parse thumbKey from Thumbnail URL")

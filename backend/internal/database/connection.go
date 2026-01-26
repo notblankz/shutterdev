@@ -44,6 +44,12 @@ func InitDB(filepath string) *sql.DB {
 		PRIMARY KEY(photo_id, tag_id)
 	);`
 
+	createFailedDeleteStore := `CREATE TABLE IF NOT EXISTS failed_storage_deletes (
+		"id" TEXT NOT NULL PRIMARY KEY,
+		"web_url" TEXT,
+		"thumbnail_url" TEXT
+	)`
+
 	log.Println("Creating database tables...")
 	_, err = db.Exec(createPhotosTableSQL)
 	if err != nil {
@@ -56,6 +62,11 @@ func InitDB(filepath string) *sql.DB {
 	}
 
 	_, err = db.Exec(createPhotoTagsTableSQL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = db.Exec(createFailedDeleteStore)
 	if err != nil {
 		log.Fatal(err)
 	}

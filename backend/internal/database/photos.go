@@ -2,9 +2,12 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
 	"shutterdev/backend/internal/models"
+	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
@@ -224,4 +227,35 @@ func GetAllPhotos(db *sql.DB, createdAt time.Time, id string, LIMIT int) (Photos
 
 	return response, nil
 
+}
+
+func AddToFailedStore(db *sql.DB, c *gin.Context, failedList []models.Photo) error {
+	if len((failedList)) == 0 {
+		return fmt.Errorf("Empty failed list array")
+	}
+
+	ctx := c.Request.Context()
+
+	placeholders := make([]string, len(failedList))
+	args := make([]any, 0, len(failedList)*3)
+
+	for i, photo := range failedList {
+		placeholders[i] = "(?, ?, ?)"
+		args = append(args, photo.ID, photo.ImageURL, photo.ThumbnailURL)
+	}
+
+	query := fmt.Sprintf(`
+	INSERT INTO failed_storage_deletes (id, web_url, thumbnail_url)
+	VALUES %s
+	ON CONFLICT(id) DO UPDATE SET
+		web_url = excluded.web_url,
+		thumbnail_url = excluded.thumbnail_url;
+	`, strings.Join(placeholders, ","))
+
+	_, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("Failed to upsert failed_storage_deletes: %v", err)
+	}
+
+	return nil
 }
