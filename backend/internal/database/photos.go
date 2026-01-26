@@ -1,13 +1,13 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"shutterdev/backend/internal/models"
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
@@ -229,12 +229,28 @@ func GetAllPhotos(db *sql.DB, createdAt time.Time, id string, LIMIT int) (Photos
 
 }
 
-func AddToFailedStore(db *sql.DB, c *gin.Context, failedList []models.Photo) error {
+func GetAllPhotoIDs(db *sql.DB, ctx context.Context) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT id FROM photos`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+func AddToFailedStore(db *sql.DB, ctx context.Context, failedList []models.Photo) error {
 	if len((failedList)) == 0 {
 		return fmt.Errorf("Empty failed list array")
 	}
-
-	ctx := c.Request.Context()
 
 	placeholders := make([]string, len(failedList))
 	args := make([]any, 0, len(failedList)*3)

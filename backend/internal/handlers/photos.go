@@ -142,7 +142,7 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 
 // TODO: Implement delete all photos
 // DELETE /api/admin/photos
-func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
+func (h *PhotoHandler) DeletePhotos(c *gin.Context) {
 
 	var deleteRequest DeleteRequest
 	if bindError := c.ShouldBindJSON(&deleteRequest); bindError != nil {
@@ -157,114 +157,29 @@ func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 		return
 	}
 
-	tx, err := h.DB.BeginTx(c.Request.Context(), nil)
+	resp, err := h.deleteByIDs(c.Request.Context(), deleteRequest.DeleteIDsArray)
 	if err != nil {
-		log.Println("[DELETE:ERROR]: Could not start a transaction to delete")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not start a transaction to delete"})
-		return
-	}
-	defer tx.Rollback()
-
-	var fk int
-	tx.QueryRow("PRAGMA foreign_keys;").Scan(&fk)
-	log.Println("[INFO]: foreign_keys =", fk)
-
-	// Get snapshot of Rows to delete to maintain state
-	placeholders := make([]string, len(deleteRequest.DeleteIDsArray))
-	args := make([]any, len(deleteRequest.DeleteIDsArray))
-
-	for i, id := range deleteRequest.DeleteIDsArray {
-		placeholders[i] = "?"
-		args[i] = id
+		log.Printf("[DELETE:ERROR] %v", err)
+		c.JSON(http.StatusInternalServerError, resp)
 	}
 
-	var snapshotRows []models.Photo
+	c.JSON(http.StatusOK, resp)
 
-	toDeleteSnapshot := fmt.Sprintf(`
-	SELECT id, image_url, thumbnail_url, created_at
-	FROM photos WHERE id IN (%s)`, strings.Join(placeholders, ","))
+}
 
-	toDeleteRows, err := tx.QueryContext(c.Request.Context(), toDeleteSnapshot, args...)
+// DELETE /api/admin/photos/all
+func (h *PhotoHandler) DeleteAllPhotos(c *gin.Context) {
+	toDeleteIds, err := database.GetAllPhotoIDs(h.DB, c.Request.Context())
 	if err != nil {
-		log.Println("[DELETE:ERROR]: An error occured while trying to query the Database to take a snapshot", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured while trying to query the Database to take a snapshot"})
-		return
-	}
-	defer toDeleteRows.Close()
-
-	for toDeleteRows.Next() {
-		var p models.Photo
-
-		if scanErr := toDeleteRows.Scan(
-			&p.ID,
-			&p.ImageURL,
-			&p.ThumbnailURL,
-			&p.CreatedAt,
-		); scanErr != nil {
-			log.Printf("[DELETE:ERROR] An error occured while scanning query output to structs - %v", scanErr)
-			c.JSON(http.StatusInternalServerError, "An error occured while scanning query output to structs")
-			return
-		}
-
-		snapshotRows = append(snapshotRows, p)
-	}
-
-	if err := toDeleteRows.Err(); err != nil {
-		log.Println("[DELETE:ERROR]: An error occured while reading the rows of Snapshot query into slice", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured while reading the rows of Snapshot query into slice"})
+		log.Printf("[DELETE:ERROR] Could not get All the IDs of photos to Delete - %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not get All the IDs of photos to Delete"})
 		return
 	}
 
-	deletePhotos := fmt.Sprintf("DELETE FROM photos WHERE id IN (%s)", strings.Join(placeholders, ","))
-	if _, deleteErr := tx.ExecContext(c.Request.Context(), deletePhotos, args...); deleteErr != nil {
-		log.Printf("[DELETE:ERROR]: An error occured while trying to delete the photos from the DB - %v", deleteErr)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured while trying to delete the photos from the DB"})
-		return
-	}
-
-	removeOrphanTags := `
-	DELETE FROM tags
-		WHERE id IN (
-			SELECT t.id
-			FROM tags t
-			WHERE NOT EXISTS (
-				SELECT 1
-				FROM photo_tags pt
-				WHERE pt.tag_id = t.id
-			)
-		);`
-	if _, orphanTagsErr := tx.Exec(removeOrphanTags); orphanTagsErr != nil {
-		log.Printf("[DELETE:ERROR]: Could not delete orphaned tags - %v", orphanTagsErr)
-		return
-	}
-	if commitErr := tx.Commit(); commitErr != nil {
-		log.Printf("[DELETE:ERROR] An error occured commiting the transaction to the Database - %v", commitErr)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured commiting the transaction to the Database"})
-		return
-	}
-
-	log.Printf("[DELETE:SUCCESS]: Successfully completed all deletions from Database")
-
-	var failedList []models.Photo
-	var blobDeleted int
-	for _, photo := range snapshotRows {
-		if err := h.deleteBlobs(photo.ImageURL, photo.ThumbnailURL, c); err != nil {
-			failedList = append(failedList, photo)
-			log.Println(err.Error())
-		} else {
-			blobDeleted++
-		}
-	}
-	if len(failedList) != 0 {
-		database.AddToFailedStore(h.DB, c, failedList)
-	}
-
-	resp := gin.H{
-		"db_deleted": len(args),
-		"storage": gin.H{
-			"success": blobDeleted,
-			"failed":  len(failedList),
-		},
+	resp, err := h.deleteByIDs(c.Request.Context(), toDeleteIds)
+	if err != nil {
+		log.Printf("[DELETE:ERROR] %v", err)
+		c.JSON(http.StatusInternalServerError, resp)
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -489,9 +404,116 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 	return nil
 }
 
-func (h *PhotoHandler) deleteBlobs(imageURL string, thumbnailURL string, c *gin.Context) error {
+func (h *PhotoHandler) deleteByIDs(ctx context.Context, ids []string) (resp gin.H, err error) {
+	tx, err := h.DB.BeginTx(ctx, nil)
+	if err != nil {
+		resp = gin.H{"error": "Could not start a transaction to delete"}
+		return resp, fmt.Errorf("Could not start a transaction to delete")
+	}
+	defer tx.Rollback()
 
-	g, ctx := errgroup.WithContext(c.Request.Context())
+	// Get snapshot of Rows to delete to maintain state
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	var snapshotRows []models.Photo
+
+	toDeleteSnapshot := fmt.Sprintf(`
+	SELECT id, image_url, thumbnail_url, created_at
+	FROM photos WHERE id IN (%s)`, strings.Join(placeholders, ","))
+
+	toDeleteRows, err := tx.QueryContext(ctx, toDeleteSnapshot, args...)
+	if err != nil {
+		resp = gin.H{"error": "An error occured while trying to query the Database to take a snapshot"}
+		return resp, fmt.Errorf("An error occured while trying to query the Database to take a snapshot")
+	}
+	defer toDeleteRows.Close()
+
+	for toDeleteRows.Next() {
+		var p models.Photo
+
+		if scanErr := toDeleteRows.Scan(
+			&p.ID,
+			&p.ImageURL,
+			&p.ThumbnailURL,
+			&p.CreatedAt,
+		); scanErr != nil {
+			resp = gin.H{"error": "An error occured while scanning query output to structs"}
+			return resp, fmt.Errorf("An error occured while scanning query output to structs")
+		}
+
+		snapshotRows = append(snapshotRows, p)
+	}
+
+	if err := toDeleteRows.Err(); err != nil {
+		log.Println("[DELETE:ERROR]: An error occured while reading the rows of Snapshot query into slice", err.Error())
+		resp = gin.H{"error": "An error occured while reading the rows of Snapshot query into slice"}
+		return resp, fmt.Errorf("An error occured while reading the rows of Snapshot query into slice - %v", err)
+	}
+
+	deletePhotos := fmt.Sprintf("DELETE FROM photos WHERE id IN (%s)", strings.Join(placeholders, ","))
+	deletedRes, deleteErr := tx.ExecContext(ctx, deletePhotos, args...)
+	if deleteErr != nil {
+		resp = gin.H{"error": "An error occured while trying to delete the photos from the DB"}
+		return resp, fmt.Errorf("An error occured while trying to delete the photos from the DB - %v", deleteErr)
+	}
+	rowsDeleted, _ := deletedRes.RowsAffected()
+
+	removeOrphanTags := `
+	DELETE FROM tags
+		WHERE id IN (
+			SELECT t.id
+			FROM tags t
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM photo_tags pt
+				WHERE pt.tag_id = t.id
+			)
+		);`
+	if _, orphanTagsErr := tx.Exec(removeOrphanTags); orphanTagsErr != nil {
+		resp = gin.H{"error": "Could not delete orphaned tags"}
+		return resp, fmt.Errorf("Could not delete orphaned tags - %v", orphanTagsErr)
+	}
+	if commitErr := tx.Commit(); commitErr != nil {
+		resp = gin.H{"error": "An error occured commiting the transaction to the Database"}
+		return resp, fmt.Errorf("An error occured commiting the transaction to the Database - %v", commitErr)
+	}
+
+	log.Printf("[DELETE:SUCCESS]: Successfully completed all deletions from Database")
+
+	var failedList []models.Photo
+	var blobDeleted int
+	for _, photo := range snapshotRows {
+		if err := h.deleteBlobs(photo.ImageURL, photo.ThumbnailURL, ctx); err != nil {
+			failedList = append(failedList, photo)
+			log.Println(err.Error())
+		} else {
+			blobDeleted++
+		}
+	}
+	if len(failedList) != 0 {
+		database.AddToFailedStore(h.DB, ctx, failedList)
+	}
+
+	resp = gin.H{
+		"db_deleted": rowsDeleted,
+		"storage": gin.H{
+			"success": blobDeleted,
+			"failed":  len(failedList),
+		},
+	}
+
+	return resp, nil
+}
+
+func (h *PhotoHandler) deleteBlobs(imageURL string, thumbnailURL string, ctx context.Context) error {
+
+	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
 		if imageURL == "" {
