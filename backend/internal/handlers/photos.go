@@ -140,7 +140,6 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"uploaded": imageCounter})
 }
 
-// TODO: Implement delete all photos
 // DELETE /api/admin/photos
 func (h *PhotoHandler) DeletePhotos(c *gin.Context) {
 
