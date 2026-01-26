@@ -255,12 +255,10 @@ func (h *PhotoHandler) DeletePhoto(c *gin.Context) {
 			blobDeleted++
 		}
 	}
-	// TODO: Persistent retry queue: add failed photos to failed_storage_deletes and poll them frequently
 	if len(failedList) != 0 {
 		database.AddToFailedStore(h.DB, c, failedList)
 	}
 
-	// TODO: add failed_list value in resp (maybe)
 	resp := gin.H{
 		"db_deleted": len(args),
 		"storage": gin.H{
