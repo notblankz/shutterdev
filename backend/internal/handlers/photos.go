@@ -47,12 +47,12 @@ func (h *PhotoHandler) GetAllPhotos(c *gin.Context) {
 	decodedCursor, err := base64.StdEncoding.DecodeString(cursor)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode from Base64"})
-		log.Println(err)
+		log.Printf("[DECODE CURSOR] Could not decode cursor from Base64 - %v", err)
 		return
 	}
 
 	if string(decodedCursor) == "" {
-		log.Println("[DECODED CURSOR] Decoded cursor is empty - requesting first page")
+		log.Println("[DECODE CURSOR] Decoded cursor is empty - requesting first page")
 		photos, err := database.GetAllPhotos(h.DB, time.Time{}, "", LIMIT)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch photos"})
@@ -73,12 +73,12 @@ func (h *PhotoHandler) GetAllPhotos(c *gin.Context) {
 	err = json.Unmarshal([]byte(decodedCursor), &cursorObtained)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not parse JSON"})
-		log.Println(err)
+		log.Printf("[DECODE CURSOR] Could not parse JSON - %v", err)
 		return
 	}
 
-	log.Println("[CURSOR: created_at]" + (cursorObtained.CreatedAt).String())
-	log.Println("[CURSOR: ID]" + cursorObtained.ID)
+	log.Println("[CURSOR: created_at] " + (cursorObtained.CreatedAt).String())
+	log.Println("[CURSOR: ID] " + cursorObtained.ID)
 	photos, err := database.GetAllPhotos(h.DB, cursorObtained.CreatedAt, cursorObtained.ID, LIMIT)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch photos"})
@@ -145,37 +145,42 @@ func (h *PhotoHandler) DeletePhotos(c *gin.Context) {
 
 	var deleteRequest DeleteRequest
 	if bindError := c.ShouldBindJSON(&deleteRequest); bindError != nil {
-		log.Println("[ERROR]: Could not bind")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "booyah"})
+		log.Printf("[ERROR]: Could not bind request.Body to internal struct - %v", bindError)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Could not bind request.Body to internal struct"})
 		return
 	}
 
 	if len(deleteRequest.DeleteIDsArray) == 0 {
 		log.Println("[DELETE:ERROR]: 0 Photos recieved to delete")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "0 Photos recieved to delete"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "0 Photos recieved to delete"})
 		return
 	}
 
-	resp, err := h.deleteByIDs(c.Request.Context(), deleteRequest.DeleteIDsArray)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+
+	resp, err := h.deleteByIDs(ctx, deleteRequest.DeleteIDsArray)
 	if err != nil {
 		log.Printf("[DELETE:ERROR] %v", err)
 		c.JSON(http.StatusInternalServerError, resp)
+		return
 	}
 
 	c.JSON(http.StatusOK, resp)
-
 }
 
 // DELETE /api/admin/photos/all
 func (h *PhotoHandler) DeleteAllPhotos(c *gin.Context) {
-	toDeleteIds, err := database.GetAllPhotoIDs(h.DB, c.Request.Context())
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+	toDeleteIds, err := database.GetAllPhotoIDs(h.DB, ctx)
 	if err != nil {
 		log.Printf("[DELETE:ERROR] Could not get All the IDs of photos to Delete - %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not get All the IDs of photos to Delete"})
 		return
 	}
 
-	resp, err := h.deleteByIDs(c.Request.Context(), toDeleteIds)
+	resp, err := h.deleteByIDs(ctx, toDeleteIds)
 	if err != nil {
 		log.Printf("[DELETE:ERROR] %v", err)
 		c.JSON(http.StatusInternalServerError, resp)
@@ -202,7 +207,7 @@ func (h *PhotoHandler) NukeFailedBlobs(c *gin.Context) {
 	getFailedList := `SELECT id, web_url, thumbnail_url FROM failed_storage_deletes`
 	tx, err := h.DB.BeginTx(ctx, nil)
 	if err != nil {
-		log.Printf("An error occured when trying to start a new transaction - %v", err)
+		log.Printf("[NUKE ORPHANS] An error occured when trying to start a new transaction - %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured when trying to start a new transaction"})
 		return
 	}
@@ -210,7 +215,7 @@ func (h *PhotoHandler) NukeFailedBlobs(c *gin.Context) {
 
 	rows, err := tx.QueryContext(ctx, getFailedList)
 	if err != nil {
-		log.Printf("An error occured querying to the database - %v", err)
+		log.Printf("[NUKE ORPHANS] An error occured querying to the database - %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured querying to the database"})
 		return
 	}
@@ -219,7 +224,7 @@ func (h *PhotoHandler) NukeFailedBlobs(c *gin.Context) {
 	for rows.Next() {
 		var fr FailedRow
 		if err := rows.Scan(&fr.id, &fr.webURL, &fr.thumbURL); err != nil {
-			log.Printf("An error occured in trying to scan the rows from the QueryResult - %v", err)
+			log.Printf("[NUKE ORPHANS] An error occured in trying to scan the rows from the QueryResult - %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured in trying to scan the rows from the QueryResult"})
 			return
 		}
@@ -228,14 +233,14 @@ func (h *PhotoHandler) NukeFailedBlobs(c *gin.Context) {
 	}
 
 	if err := rows.Err(); err != nil {
-		log.Printf("An error occured in reading Rows - %v", err)
+		log.Printf("[NUKE ORPHANS] An error occured in reading Rows - %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured in reading Rows"})
 		return
 	}
 
 	if len(retryList) == 0 {
 		if err := tx.Commit(); err != nil {
-			log.Printf("commit failed: %v", err)
+			log.Printf("[NUKE ORPHANS] Commit failed: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "commit failed"})
 			return
 		}
@@ -248,7 +253,7 @@ func (h *PhotoHandler) NukeFailedBlobs(c *gin.Context) {
 
 	for _, photo := range retryList {
 		if err := h.deleteBlobs(photo.webURL, photo.thumbURL, c); err != nil {
-			log.Printf("An error trying to delete the Photo (%s) - %v", photo.id, err)
+			log.Printf("[NUKE ORPHANS] An error trying to delete the Photo (%s) - %v", photo.id, err)
 			continue
 		}
 		successList = append(successList, photo.id)
@@ -257,7 +262,7 @@ func (h *PhotoHandler) NukeFailedBlobs(c *gin.Context) {
 
 	if len(successList) == 0 {
 		if err := tx.Commit(); err != nil {
-			log.Printf("commit failed: %v", err)
+			log.Printf("[NUKE ORPHANS] Commit failed: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "commit failed"})
 			return
 		}
@@ -280,12 +285,12 @@ func (h *PhotoHandler) NukeFailedBlobs(c *gin.Context) {
 
 	_, deleteErr := tx.ExecContext(ctx, deleteFromFailedStore, args...)
 	if deleteErr != nil {
-		log.Printf("An error occured in trying to delete the succeeded rows from failed_storage_deletes - %v", deleteErr)
+		log.Printf("[NUKE ORPHANS] An error occured in trying to delete the succeeded rows from failed_storage_deletes - %v", deleteErr)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occured in trying to delete the succeeded rows from failed_storage_deletes"})
 		return
 	}
 	if err := tx.Commit(); err != nil {
-		log.Printf("commit failed: %v", err)
+		log.Printf("[NUKE ORPHANS] Commit failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "commit failed"})
 		return
 	}
@@ -350,7 +355,8 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 		return fmt.Errorf("image processing failed")
 	}
 
-	ctx := c.Request.Context()
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
 
 	// variables
 	var errWebUpload error
@@ -483,14 +489,14 @@ func (h *PhotoHandler) deleteByIDs(ctx context.Context, ids []string) (resp gin.
 		return resp, fmt.Errorf("An error occured commiting the transaction to the Database - %v", commitErr)
 	}
 
-	log.Printf("[DELETE:SUCCESS]: Successfully completed all deletions from Database")
+	log.Printf("[DELETE] Successfully completed all deletions from Database")
 
 	var failedList []models.Photo
 	var blobDeleted int
 	for _, photo := range snapshotRows {
 		if err := h.deleteBlobs(photo.ImageURL, photo.ThumbnailURL, ctx); err != nil {
 			failedList = append(failedList, photo)
-			log.Println(err.Error())
+			log.Printf("[DELETE] Failed to delete blob - %v", err)
 		} else {
 			blobDeleted++
 		}

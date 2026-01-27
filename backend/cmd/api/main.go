@@ -24,7 +24,9 @@ func main() {
 		log.Println("[ERROR] Could not load .env file", envErr)
 	}
 
-	fmt.Println("Starting server...")
+	gin.SetMode(os.Getenv("GIN_MODE"))
+
+	fmt.Printf("[%s] Starting server...\n\n", gin.Mode())
 	r := gin.Default()
 
 	r.Use(cors.New(cors.Config{
@@ -34,6 +36,8 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+
+	r.SetTrustedProxies(nil)
 
 	r.Static("/public", "./public")
 	r.StaticFile("/", "./public/index.html")
