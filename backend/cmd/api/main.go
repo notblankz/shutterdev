@@ -24,6 +24,12 @@ func main() {
 		log.Println("[ERROR] Could not load .env file", envErr)
 	}
 
+	if os.Getenv("ADMIN_PASSWORD_HASH") == "" {
+		log.Fatal("[FATAL] ADMIN_PASSWORD_HASH missing from .env")
+	} else if os.Getenv("JWT_SECRET") == "" {
+		log.Fatal("[FATAL] JWT_SECRET missing from .env")
+	}
+
 	gin.SetMode(os.Getenv("GIN_MODE"))
 
 	fmt.Printf("[%s] Starting server...\n\n", gin.Mode())
