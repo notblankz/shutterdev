@@ -34,9 +34,7 @@ export default function DeleteSlotPage() {
     async function handleNukeOrphans() {
         return fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/photos/failed`, {
             method: "DELETE",
-            headers: {
-                Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_KEY}`,
-            },
+            credentials: "include",
         }).then(async (res) => {
             if (!res.ok) {
                 const err = await res.json();
@@ -54,9 +52,9 @@ export default function DeleteSlotPage() {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/photos`, {
             method: "DELETE",
             headers: {
-                Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_KEY}`,
                 "Content-Type": "application/json"
             },
+            credentials: "include",
             body: JSON.stringify(toDeleteJSON)
         })
 
@@ -82,9 +80,9 @@ export default function DeleteSlotPage() {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/photos/all`, {
             method: "DELETE",
             headers: {
-                Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_KEY}`,
-                "Content-Type": "application/json"
-            }
+                "Content-Type": "application/json",
+            },
+            credentials: "include",
         })
 
         if (!res.ok) {

@@ -4,15 +4,15 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
+	"shutterdev/backend/internal/auth"
+	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // POST /api/admin/login
-func LoginAdmin(c *gin.Context) {
+func (h *PhotoHandler) LoginAdmin(c *gin.Context) {
 	type LoginRequest struct {
 		Password string `json:"password"`
 	}
@@ -22,6 +22,7 @@ func LoginAdmin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
+
 	err := bcrypt.CompareHashAndPassword([]byte(os.Getenv("ADMIN_PASSWORD_HASH")), []byte(lr.Password))
 	if err != nil {
 		log.Println("[UNAUTHORISED] Password is incorrect hence the user is not authorised")
@@ -29,7 +30,7 @@ func LoginAdmin(c *gin.Context) {
 		return
 	}
 
-	tokenString, err := generateToken()
+	tokenString, err := auth.GenerateToken()
 	if err != nil {
 		log.Printf("[LOGIN:ERROR] An error occured while generating the JWT token - %v", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "An error occured while generating the JWT token"})
@@ -37,20 +38,39 @@ func LoginAdmin(c *gin.Context) {
 	}
 
 	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("auth_token", tokenString, 0, "", "", true, true)
+	c.SetCookie("auth_token", tokenString, 0, "", "", true, false)
 	c.JSON(http.StatusOK, gin.H{"message": "Successfully logged in"})
 }
 
-// <== helper functions ==>
-func generateToken() (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  "admin",
-		"role": "admin",
-		"exp":  time.Now().Add(2 * time.Hour).Unix(),
-	})
-	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+// GET /api/admin/me
+func (h *PhotoHandler) CheckAdmin(c *gin.Context) {
+	tokenString, err := c.Cookie("auth_token")
+
 	if err != nil {
-		return "", err
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			log.Printf("[AUTH] No JWT token received")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing JWT auth token"})
+			return
+		}
+
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			log.Println("[AUTH] Malformed JWT Token received")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header must be of the form Bearer <token>"})
+			return
+		}
+
+		tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 	}
-	return tokenString, nil
+
+	authorised, err := auth.VerifyToken(tokenString)
+	if err != nil || !authorised {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorised to access this resource"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"authenticated": true,
+		"role":          "admin",
+	})
 }

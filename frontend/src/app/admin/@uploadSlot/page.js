@@ -42,10 +42,8 @@ export default function AdminUploadSlot() {
         try {
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/photos`, {
                 method: "POST",
-                headers: {
-                    Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_KEY}`
-                },
-                body: formData
+                body: formData,
+                credentials: "include",
             })
 
             if (!res.ok) {

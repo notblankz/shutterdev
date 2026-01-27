@@ -11,6 +11,8 @@ func RegisterRoutes(router *gin.Engine, h *PhotoHandler, userApiKey string) {
 	{
 		api.GET("/photos", h.GetAllPhotos)
 		api.GET("/photos/:id", h.GetPhotoByID)
+		api.POST("/admin/login", h.LoginAdmin)
+		api.GET("/admin/me", h.CheckAdmin)
 		admin := api.Group("/admin")
 		{
 			admin.Use(middleware.AuthMiddleware())
