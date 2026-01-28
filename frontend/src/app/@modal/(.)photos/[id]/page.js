@@ -1,27 +1,37 @@
 // "/photos/:id - modal view"
+"use client";
 
-import * as React from 'react'
-import LightboxModal from './modal';
-import PhotoDetail from '@/components/PhotoDetail';
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import LightboxModal from "./modal";
+import PhotoDetail from "@/components/PhotoDetail";
+import { Spinner } from "@/components/ui/spinner";
 
-export default async function PhotoLightboxPage({ params }) {
-    const { id } = await params
+export default function PhotoLightboxPage() {
+    const { id } = useParams();
+    const [photo, setPhoto] = useState(null);
 
-    const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/photos/${id}`,
-        { cache: "no-store" }
-    )
+    useEffect(() => {
+        if (!id) return;
 
-    if (!res.ok) {
-        throw new Error("Failed to fetch photo")
-    }
+        async function load() {
+            const res = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL}/api/photos/${id}`
+            );
+            const data = await res.json();
+            setPhoto(data);
+        }
 
-    const photo = await res.json()
-    console.log("[SUCCESS] Received Photo with ID: " + photo.id)
+        load();
+    }, [id]);
 
     return (
-        <LightboxModal id={photo.id}>
-            <PhotoDetail photo={photo}></PhotoDetail>
+        <LightboxModal id={id}>
+            {!photo &&
+                <div className="flex h-full items-center justify-center text-neutral-700 gap-1.5">
+                    <Spinner className="size-4 lg:size-6 xl:size-8"/>
+                </div>}
+            {photo && <PhotoDetail photo={photo} />}
         </LightboxModal>
-    )
+    );
 }

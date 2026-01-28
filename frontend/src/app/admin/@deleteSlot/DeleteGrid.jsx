@@ -35,6 +35,7 @@ export default function DeleteGrid({
                             placeholder={`data:image/svg+xml;base64,${ToBase64(
                                 Shimmer(photo.thumbWidth, photo.thumbHeight)
                             )}`}
+                            unoptimized
                         />
 
                         {selected.has(photo.id) && (
