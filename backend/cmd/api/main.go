@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -35,7 +36,11 @@ func main() {
 	r := gin.Default()
 
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{os.Getenv("NEXT_APP_DEV_URL"), os.Getenv("NEXT_APP_PUBLIC_URL"), os.Getenv("NEXT_APP_PUBLIC_URL_2")},
+		AllowOriginFunc: func(origin string) bool {
+			return (origin == os.Getenv("FRONTEND_PROD_ORIGIN") ||
+				strings.HasSuffix(origin, os.Getenv("FRONTEND_PREVIEW_SUFFIX")) ||
+				origin == os.Getenv("FRONTEND_DEV_ORIGIN"))
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Authorization", "Content-Type", "Origin"},
 		AllowCredentials: true,
