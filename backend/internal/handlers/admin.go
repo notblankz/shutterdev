@@ -37,8 +37,23 @@ func (h *PhotoHandler) LoginAdmin(c *gin.Context) {
 		return
 	}
 
-	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("auth_token", tokenString, 0, "", "", true, false)
+	c.SetCookieData(&http.Cookie{
+		Name:   "auth_token",
+		Value:  tokenString,
+		Path:   "/",
+		Domain: ".aahansharma.dev",
+		SameSite: func() http.SameSite {
+			if os.Getenv("GIN_MODE") == "debug" {
+				return http.SameSiteNoneMode
+			} else {
+				return http.SameSiteStrictMode
+			}
+		}(),
+		Secure:   true,
+		HttpOnly: true,
+		MaxAge:   60 * 60 * 2,
+	})
+
 	c.JSON(http.StatusOK, gin.H{"message": "Successfully logged in"})
 }
 

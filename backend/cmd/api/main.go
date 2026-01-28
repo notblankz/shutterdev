@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -36,11 +35,10 @@ func main() {
 	r := gin.Default()
 
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{os.Getenv("NEXT_APP_PUBLIC_URL")},
+		AllowOrigins:     []string{os.Getenv("NEXT_APP_DEV_URL"), os.Getenv("NEXT_APP_PUBLIC_URL"), os.Getenv("NEXT_APP_PUBLIC_URL_2")},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Authorization", "Content-Type"},
+		AllowHeaders:     []string{"Authorization", "Content-Type", "Origin"},
 		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
 	}))
 
 	r.SetTrustedProxies(nil)

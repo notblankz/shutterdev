@@ -10,7 +10,7 @@ export default function AdminLayout({ children, uploadSlot, deleteSlot }) {
 
     useEffect(() => {
         async function checkAuth() {
-            const res = await fetch("/api/admin/me", {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/me`, {
                 credentials: "include",
             });
 
