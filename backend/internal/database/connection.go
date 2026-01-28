@@ -12,7 +12,7 @@ func InitDB(filepath string) *sql.DB {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("Database connected successfully")
+	log.Println("[[DATABASE] Database connected successfully")
 
 	_, err = db.Exec("PRAGMA foreign_keys = ON;")
 	if err != nil {
@@ -50,7 +50,7 @@ func InitDB(filepath string) *sql.DB {
 		"thumbnail_url" TEXT
 	)`
 
-	log.Println("Creating database tables...")
+	log.Println("[DATABASE] Creating database tables...")
 	_, err = db.Exec(createPhotosTableSQL)
 	if err != nil {
 		log.Fatal(err)
@@ -70,7 +70,7 @@ func InitDB(filepath string) *sql.DB {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("Tables created successfully.")
+	log.Println("[DATABASE] Tables created successfully.")
 
 	return db
 }
