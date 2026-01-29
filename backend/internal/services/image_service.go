@@ -109,10 +109,10 @@ func resizeToWeb(img image.Image) (webImage []byte, err error) {
 	var webResized image.Image
 	if img.Bounds().Dx() >= img.Bounds().Dy() {
 		// landscape resize
-		webResized = resize.Resize(1920, 0, img, resize.Lanczos3)
+		webResized = resize.Resize(1440, 0, img, resize.Lanczos3)
 	} else {
 		// portrait resize
-		webResized = resize.Resize(0, 1920, img, resize.Lanczos3)
+		webResized = resize.Resize(0, 1440, img, resize.Lanczos3)
 	}
 
 	// <- Encode image.Image back to JPEG for storing ->
@@ -129,11 +129,11 @@ func resizeToThumb(img image.Image) (finalThumbImage []byte, thumbWidth int, thu
 	var sharpernedThumbResized image.Image
 	if img.Bounds().Dx() > img.Bounds().Dy() {
 		// landscape resize
-		thumbResized = resize.Resize(800, 0, img, resize.Lanczos3)
+		thumbResized = resize.Resize(640, 0, img, resize.Lanczos3)
 		sharpernedThumbResized = imaging.Sharpen(thumbResized, 0.3)
 	} else {
 		// portrait resize
-		thumbResized = resize.Resize(0, 800, img, resize.Lanczos3)
+		thumbResized = resize.Resize(0, 640, img, resize.Lanczos3)
 		sharpernedThumbResized = imaging.Sharpen(thumbResized, 0.3)
 	}
 	thumbWidth = thumbResized.Bounds().Dx()

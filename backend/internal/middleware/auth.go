@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
 	"shutterdev/backend/internal/auth"
 	"strings"
@@ -16,11 +17,13 @@ func AuthMiddleware() gin.HandlerFunc {
 		if err != nil {
 			authHeader := c.GetHeader("Authorization")
 			if authHeader == "" {
+				log.Println("[MIDDLEWARE] Received Empty Auth Header")
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Missing auth token"})
 				return
 			}
 
 			if !strings.HasPrefix(authHeader, "Bearer ") {
+				log.Println("[MIDDLEWARE] Received Bad Auth Header")
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header must be in the format Bearer <token>"})
 				return
 			}
@@ -30,10 +33,12 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		authorised, err := auth.VerifyToken(tokenString)
 		if err != nil {
+			log.Printf("[MIDDLEWARE] Error in verifying JWT Token - %v", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or Expired Token received"})
 			return
 		}
 		if !authorised {
+			log.Println("[MIDDLEWARE] Not Authorised to Access")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Not authorised to access this protected resource"})
 			return
 		}
