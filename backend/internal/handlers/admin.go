@@ -25,7 +25,7 @@ func (h *PhotoHandler) LoginAdmin(c *gin.Context) {
 
 	err := bcrypt.CompareHashAndPassword([]byte(os.Getenv("ADMIN_PASSWORD_HASH")), []byte(lr.Password))
 	if err != nil {
-		log.Println("[UNAUTHORISED] Password is incorrect hence the user is not authorised")
+		log.Println("[LOGIN] Password is incorrect hence the user is not authorised")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorised to access this resource"})
 		return
 	}
@@ -37,22 +37,26 @@ func (h *PhotoHandler) LoginAdmin(c *gin.Context) {
 		return
 	}
 
-	c.SetCookieData(&http.Cookie{
-		Name:   "auth_token",
-		Value:  tokenString,
-		Path:   "/",
-		Domain: ".aahansharma.dev",
-		SameSite: func() http.SameSite {
-			if os.Getenv("GIN_MODE") == "debug" {
-				return http.SameSiteNoneMode
-			} else {
-				return http.SameSiteStrictMode
-			}
-		}(),
-		Secure:   true,
+	cookie := &http.Cookie{
+		Name:     "auth_token",
+		Value:    tokenString,
+		Path:     "/",
 		HttpOnly: true,
 		MaxAge:   60 * 60 * 2,
-	})
+	}
+
+	ginMode := os.Getenv("GIN_MODE")
+
+	if ginMode == "release" {
+		cookie.SameSite = http.SameSiteNoneMode
+		cookie.Secure = true
+		cookie.Domain = ".aahansharma.dev"
+	} else {
+		cookie.SameSite = http.SameSiteNoneMode
+		cookie.Secure = true
+	}
+
+	http.SetCookie(c.Writer, cookie)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Successfully logged in"})
 }
@@ -64,7 +68,7 @@ func (h *PhotoHandler) CheckAdmin(c *gin.Context) {
 	if err != nil {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			log.Printf("[AUTH] No JWT token received")
+			log.Printf("[AUTH] No JWT token received redirecting to Login Page")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing JWT auth token"})
 			return
 		}
