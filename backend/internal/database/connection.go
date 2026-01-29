@@ -44,6 +44,11 @@ func InitDB(filepath string) *sql.DB {
 		PRIMARY KEY(photo_id, tag_id)
 	);`
 
+	createPhotoTagsTagIDIndex := `
+		CREATE INDEX IF NOT EXISTS idx_photo_tags_tag_id
+		ON photo_tags(tag_id);
+		`
+
 	createFailedDeleteStore := `CREATE TABLE IF NOT EXISTS failed_storage_deletes (
 		"id" TEXT NOT NULL PRIMARY KEY,
 		"web_url" TEXT,
@@ -62,6 +67,11 @@ func InitDB(filepath string) *sql.DB {
 	}
 
 	_, err = db.Exec(createPhotoTagsTableSQL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = db.Exec(createPhotoTagsTagIDIndex)
 	if err != nil {
 		log.Fatal(err)
 	}
