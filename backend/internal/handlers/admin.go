@@ -48,12 +48,7 @@ func (h *PhotoHandler) LoginAdmin(c *gin.Context) {
 	ginMode := os.Getenv("GIN_MODE")
 
 	if ginMode == "release" {
-		cookie.SameSite = http.SameSiteNoneMode
-		cookie.Secure = true
 		cookie.Domain = ".aahansharma.dev"
-	} else {
-		cookie.SameSite = http.SameSiteNoneMode
-		cookie.Secure = true
 	}
 
 	http.SetCookie(c.Writer, cookie)
