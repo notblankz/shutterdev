@@ -64,7 +64,7 @@ export default function LightboxModal({id, children}) {
             }}>
             <DialogContent
             className="p-0 overflow-hidden flex flex-col
-                        w-screen h-screen max-w-none
+                        w-screen h-dvh max-w-none
 
                         sm:w-[85vw] sm:h-[95vh]
                         xl:w-[87vw]
