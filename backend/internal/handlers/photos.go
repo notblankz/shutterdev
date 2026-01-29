@@ -521,9 +521,6 @@ func (h *PhotoHandler) deleteByIDs(ctx context.Context, ids []string) (resp gin.
 
 func (h *PhotoHandler) deleteBlobs(imageURL string, thumbnailURL string, ctx context.Context) error {
 
-	log.Printf("[DELETE] To Delete - %s", imageURL)
-	log.Printf("[DELETE] To Delete - %s", thumbnailURL)
-
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
