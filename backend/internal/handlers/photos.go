@@ -310,7 +310,10 @@ func getKeyFromURL(fileURL string) (string, error) {
 		return "", err
 	}
 
-	return path.Clean(parsedURL.Path), nil
+	key := path.Clean(parsedURL.Path)
+	key = strings.TrimPrefix(key, "/")
+
+	return key, nil
 }
 
 func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHeader) error {
@@ -517,6 +520,9 @@ func (h *PhotoHandler) deleteByIDs(ctx context.Context, ids []string) (resp gin.
 }
 
 func (h *PhotoHandler) deleteBlobs(imageURL string, thumbnailURL string, ctx context.Context) error {
+
+	log.Printf("[DELETE] To Delete - %s", imageURL)
+	log.Printf("[DELETE] To Delete - %s", thumbnailURL)
 
 	g, ctx := errgroup.WithContext(ctx)
 
