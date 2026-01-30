@@ -1,4 +1,4 @@
-// // root path
+// root path
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -10,6 +10,7 @@ import { Shimmer, ToBase64 } from '@/components/shimmer';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Spinner } from '@/components/ui/spinner';
+import { getNormalizedDimensions } from '@/lib/imageUtils';
 
 function LoadingSpinner() {
     return (
@@ -69,26 +70,42 @@ export default function Home() {
                         </div>
                     ) : (
                         <div>
-                            <ResponsiveMasonry columnsCountBreakPoints={{ 350: 1, 600: 2, 900: 3, 1200: 3}}>
+                            <ResponsiveMasonry columnsCountBreakPoints={{ 350: 1, 600: 2, 900: 3, 1200: 3 }}>
                                 <Masonry gutter="1rem">
-                                    {photos.map((photo) => (
-                                        <Image
-                                            key={photo.id}
-                                            src={photo.thumbnailUrl}
-                                            width={photo.thumbWidth}
-                                            height={photo.thumbHeight}
-                                            alt=""
-                                            className="rounded-md cursor-pointer"
-                                            placeholder={`data:image/svg+xml;base64,${ToBase64(
-                                                Shimmer(photo.thumbWidth, photo.thumbHeight)
-                                            )}`}
-                                            unoptimized
-                                            onClick={() =>
-                                                router.push(`/photos/${photo.id}`, { scroll: false })
-                                            }
-                                            onContextMenu={handleRightClick}
-                                        />
-                                    ))}
+                                    {photos.map((photo) => {
+                                        const { width, height } = getNormalizedDimensions(
+                                            photo.thumbWidth,
+                                            photo.thumbHeight
+                                        );
+
+                                        return (
+                                            <div
+                                                key={photo.id}
+                                                className="relative w-full overflow-hidden rounded-md cursor-pointer group"
+                                                style={{
+                                                    aspectRatio: `${width} / ${height}`,
+                                                    maxHeight: 'min(700px, 80vh)'
+                                                }}
+                                            >
+                                                <Image
+                                                    src={photo.thumbnailUrl}
+                                                    fill
+                                                    sizes="(max-width: 600px) 100vw, (max-width: 900px) 50vw, 33vw"
+                                                    alt=""
+                                                    className="object-cover transition-transform duration-200 group-hover:scale-105"
+                                                    placeholder="blur"
+                                                    blurDataURL={`data:image/svg+xml;base64,${ToBase64(
+                                                        Shimmer(width, height)
+                                                    )}`}
+                                                    unoptimized
+                                                    onClick={() =>
+                                                        router.push(`/photos/${photo.id}`, { scroll: false })
+                                                    }
+                                                    onContextMenu={handleRightClick}
+                                                />
+                                            </div>
+                                        );
+                                    })}
                                 </Masonry>
                             </ResponsiveMasonry>
                             <div ref={sentinelRef} className="w-full">
