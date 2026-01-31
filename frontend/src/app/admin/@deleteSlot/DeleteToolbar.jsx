@@ -13,17 +13,35 @@ export default function DeleteToolbar({
     onDeleteAll
 }) {
     return (
-        <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center">
-                <p className="text-xl mr-3">Selected: {selectedCount}</p>
-                <Button variant="outline" className="mr-3" onClick={onClear}>
+        <div className="flex items-end justify-between mb-3 lg:items-center">
+            <div className="flex flex-col items-start justify-center gap-1.5 lg:gap-3 lg:flex-row lg:items-center">
+                <p className="text-xl">Selected: {selectedCount}</p>
+                <Button variant="outline" onClick={onClear}>
                         Clear Selection
                 </Button>
             </div>
-            <div className="flex items-center">
+            <div className="flex flex-col items-end gap-1.5 lg:flex-row lg:items-center lg:gap-3">
                 <Button
                     variant="destructive"
-                    className="mr-3 hover:cursor-pointer hover:bg-red-700!"
+                    className="hover:cursor-pointer hover:bg-red-700!"
+                    onClick={onDeleteSelected}
+                    disabled={selectedCount === 0}
+                >
+                    <Trash2/>
+                    Delete Selected
+                </Button>
+                <Button
+                    variant="destructive"
+                    className="hover:cursor-pointer hover:bg-red-700!"
+                    onClick={onDeleteAll}
+                    disabled={!hasPhotos}
+                >
+                    <Skull/>
+                    Delete EVERYTHING
+                </Button>
+                <Button
+                    variant="destructive"
+                    className="hover:cursor-pointer hover:bg-red-700!"
                     onClick={() => {
                         toast.promise(onNukeOrphans(), {
                             loading: "Nuking orphan R2 blobs...",
@@ -35,26 +53,6 @@ export default function DeleteToolbar({
                 >
                     <AlertTriangle />
                     Nuke Orphan R2 Blobs
-                </Button>
-
-                <Button
-                    variant="destructive"
-                    className="mr-3 hover:cursor-pointer hover:bg-red-700!"
-                    onClick={onDeleteSelected}
-                    disabled={selectedCount === 0}
-                >
-                    <Trash2/>
-                    Delete Selected
-                </Button>
-
-                <Button
-                    variant="destructive"
-                    className="hover:cursor-pointer hover:bg-red-700!"
-                    onClick={onDeleteAll}
-                    disabled={!hasPhotos}
-                >
-                    <Skull/>
-                    Delete EVERYTHING
                 </Button>
             </div>
         </div>

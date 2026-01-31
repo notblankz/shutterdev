@@ -1,7 +1,11 @@
+"use client";
+
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertTriangle } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { useState, useEffect } from "react"
 
 export default function ConfirmDeleteAllDialog({
     open,
@@ -11,6 +15,15 @@ export default function ConfirmDeleteAllDialog({
     deleting,
     onConfirm
 }) {
+
+    const [adminPassword, setAdminPassword] = useState("")
+
+    useEffect(() => {
+        if (open) {
+            setAdminPassword("")
+        }
+    }, [open])
+
     return (
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-md">
@@ -37,13 +50,21 @@ export default function ConfirmDeleteAllDialog({
                         placeholder="delete all photos"
                         className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-500"
                     />
+
+                    <Input
+                        type="password"
+                        placeholder="Enter delete pass.."
+                        value={adminPassword}
+                        onChange={e => setAdminPassword(e.target.value)}
+                        disabled={confirmText !== "delete all photos"}
+                    />
                 </div>
 
                 <DialogFooter className="mt-4">
                     <Button
                         variant="destructive"
-                        onClick={onConfirm}
-                        disabled={confirmText !== "delete all photos" || deleting}
+                        onClick={() => onConfirm(adminPassword)}
+                        disabled={confirmText !== "delete all photos" || deleting || adminPassword.length == 0}
                     >
                         {deleting && <Spinner />}
                         Delete EVERYTHING

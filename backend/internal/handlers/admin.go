@@ -13,6 +13,17 @@ import (
 
 // POST /api/admin/login
 func (h *PhotoHandler) LoginAdmin(c *gin.Context) {
+
+	ginMode := os.Getenv("GIN_MODE")
+
+	if ginMode == "release" {
+		origin := c.Request.Header.Get("Origin")
+		if origin != os.Getenv("FRONTEND_PROD_ORIGIN") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "invalid origin"})
+			return
+		}
+	}
+
 	type LoginRequest struct {
 		Password string `json:"password"`
 	}
@@ -42,13 +53,14 @@ func (h *PhotoHandler) LoginAdmin(c *gin.Context) {
 		Value:    tokenString,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
 		MaxAge:   60 * 60 * 2,
 	}
 
-	ginMode := os.Getenv("GIN_MODE")
-
 	if ginMode == "release" {
 		cookie.Domain = ".aahansharma.dev"
+		cookie.SameSite = http.SameSiteStrictMode
 	}
 
 	http.SetCookie(c.Writer, cookie)

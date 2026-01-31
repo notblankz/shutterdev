@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"shutterdev/backend/internal/database"
 	"shutterdev/backend/internal/models"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -30,6 +32,7 @@ type PhotoHandler struct {
 
 type DeleteRequest struct {
 	DeleteIDsArray []string `json:"DeleteIDs"`
+	Password       string   `json:"password"`
 }
 
 func NewPhotoHandler(db *sql.DB, r2 *services.R2Service) *PhotoHandler {
@@ -106,38 +109,36 @@ func (h *PhotoHandler) GetPhotoByID(c *gin.Context) {
 	c.JSON(http.StatusOK, photo)
 }
 
-// TODO: optimize multiple image upload pipeline
 // POST /api/admin/photos
 func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 
-	var imageCounter int
-	responded := false
-
 	form, err := c.MultipartForm()
 	if err != nil {
-		if !responded {
-			responded = true
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured in decoding the multipart form"})
-		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse multipart form"})
 		return
 	}
 	files := form.File["image"]
 	if len(files) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "no images provided",
+			"error": "no image provided",
 		})
 		return
 	}
 
-	for _, file := range files {
-		if err := h.processSingleImage(c, file); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		imageCounter++
+	if len(files) > 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only one image allowed per request"})
+		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"uploaded": imageCounter})
+	file := files[0]
+
+	if err := h.processSingleImage(c, file); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	log.Printf("Sucessfully uploaded image - %v", file.Filename)
+	c.JSON(http.StatusCreated, gin.H{"message": fmt.Sprintf("Successfully uploaded - %v", file.Filename)})
 }
 
 // DELETE /api/admin/photos
@@ -147,6 +148,13 @@ func (h *PhotoHandler) DeletePhotos(c *gin.Context) {
 	if bindError := c.ShouldBindJSON(&deleteRequest); bindError != nil {
 		log.Printf("[ERROR]: Could not bind request.Body to internal struct - %v", bindError)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Could not bind request.Body to internal struct"})
+		return
+	}
+
+	err := bcrypt.CompareHashAndPassword([]byte(os.Getenv("ADMIN_PASSWORD_HASH")), []byte(deleteRequest.Password))
+	if err != nil {
+		log.Println("[DELETE:ERROR]: Wrong Password Entered")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Wrong Password"})
 		return
 	}
 
@@ -171,6 +179,21 @@ func (h *PhotoHandler) DeletePhotos(c *gin.Context) {
 
 // DELETE /api/admin/photos/all
 func (h *PhotoHandler) DeleteAllPhotos(c *gin.Context) {
+
+	var deleteRequest DeleteRequest
+	if bindError := c.ShouldBindJSON(&deleteRequest); bindError != nil {
+		log.Printf("[ERROR]: Could not bind request.Body to internal struct - %v", bindError)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Could not bind request.Body to internal struct"})
+		return
+	}
+
+	err := bcrypt.CompareHashAndPassword([]byte(os.Getenv("ADMIN_PASSWORD_HASH")), []byte(deleteRequest.Password))
+	if err != nil {
+		log.Println("[DELETE:ERROR]: Wrong Password Entered")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Wrong Password"})
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 	toDeleteIds, err := database.GetAllPhotoIDs(h.DB, ctx)
@@ -184,6 +207,7 @@ func (h *PhotoHandler) DeleteAllPhotos(c *gin.Context) {
 	if err != nil {
 		log.Printf("[DELETE:ERROR] %v", err)
 		c.JSON(http.StatusInternalServerError, resp)
+		return
 	}
 
 	c.JSON(http.StatusOK, resp)
