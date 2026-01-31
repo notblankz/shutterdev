@@ -1,7 +1,8 @@
 {
-    "name": "frontend",
+    "name": "shutterdev",
     "version": "0.1.0",
     "private": true,
+    "type": "module",
     "scripts": {
         "predev": "node scripts/set-commit-hash.js",
         "dev": "next dev",

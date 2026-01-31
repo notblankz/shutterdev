@@ -12,9 +12,10 @@ import { toast } from 'sonner';
 import { Spinner } from '@/components/ui/spinner';
 import { getNormalizedDimensions } from '@/lib/imageUtils';
 import { Button } from '@/components/ui/button';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, GitBranch, GitCommitHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { VT323 } from "next/font/google";
+import PokemonSprite from '@/components/PokemonSprite';
 
 const vt323 = VT323({
   weight: "400",
@@ -86,7 +87,7 @@ export default function Home() {
                                     </div>
                                 </h1>
                             </div>
-                            <div className='flex gap-1 flex-col items-end md:flex-row md:gap-5'>
+                            <div className='flex gap-1 flex-col items-end md:flex-row md:gap-5 font-mono'>
                                 <Button variant='link' className="p-0 flex gap-1" size='xs'>
                                     <Link href='https://github.com/notblankz/' target="_blank" rel="noopener noreferrer" >github</Link>
                                     <ExternalLink className='size-3.5 mt-0.5' />
@@ -101,7 +102,7 @@ export default function Home() {
 
                     <div className="max-w-335 mx-auto pt-4">
                         {photos.length === 0 && !loading ? (
-                            <div className="text-center text-neutral-700">
+                            <div className={"text-center text-neutral-700 " + vt323.className}>
                                 <p>No photos found</p>
                             </div>
                         ) : (
@@ -151,32 +152,34 @@ export default function Home() {
                         )}
                     </div>
                     {!hasMore && photos.length > 0 && (
-                        <div className="w-full py-4 mt-4 border-t border-border">
+                        <div className="w-full py-2 mt-4 border-t border-border bg-white dark:bg-[#0a0a0a]">
                             <div className="grid grid-cols-3 items-center text-sm text-muted-foreground">
 
-                                <div>
-
+                                <div className='size-12 ml-4 flex justify-center items-center'>
+                                    <PokemonSprite/>
                                 </div>
 
                                 <div className="text-center">
-                                    <p className="text-2xl md:text-4xl tracking-widest font-serif text-foreground opacity-80">
-                                        THE END
-                                    </p>
+                                        <p className="text-2xl md:text-4xl tracking-widest font-serif text-foreground opacity-80">
+                                            THE END
+                                        </p>
                                 </div>
 
-                                <div className="text-right pr-4 text-xs opacity-70">
-                                    <p>Built from source</p>
+                                <div className="text-right pr-4 text-xs opacity-80">
                                     {commitUrl ? (
                                         <a
-                                            href={commitUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="font-mono hover:underline"
+                                        href={commitUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-mono hover:underline flex justify-end"
                                         >
-                                            commit <span className='underline'>{commitShort}</span>
+                                            <GitCommitHorizontal className='size-4 mr-0.5' /><span>{commitShort}</span>
                                         </a>
                                     ) : (
-                                        <p className="font-mono">commit <span className='underline'>{commitShort}</span></p>
+                                        <div className='flex border-2 border-r-amber-200'>
+                                            <GitCommitHorizontal/>
+                                            <span>{commitShort}</span>
+                                        </div>
                                     )}
                                 </div>
                             </div>

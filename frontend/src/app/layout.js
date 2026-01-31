@@ -3,7 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
 
 export const metadata = {
-    title: "Shutterdev",
+    title: "shutterdev",
     description: "Self-hosted photo gallery",
 };
 
