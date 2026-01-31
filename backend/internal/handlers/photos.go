@@ -109,38 +109,36 @@ func (h *PhotoHandler) GetPhotoByID(c *gin.Context) {
 	c.JSON(http.StatusOK, photo)
 }
 
-// TODO: optimize multiple image upload pipeline
 // POST /api/admin/photos
 func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 
-	var imageCounter int
-	responded := false
-
 	form, err := c.MultipartForm()
 	if err != nil {
-		if !responded {
-			responded = true
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured in decoding the multipart form"})
-		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse multipart form"})
 		return
 	}
 	files := form.File["image"]
 	if len(files) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "no images provided",
+			"error": "no image provided",
 		})
 		return
 	}
 
-	for _, file := range files {
-		if err := h.processSingleImage(c, file); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		imageCounter++
+	if len(files) > 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only one image allowed per request"})
+		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"uploaded": imageCounter})
+	file := files[0]
+
+	if err := h.processSingleImage(c, file); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	log.Printf("Sucessfully uploaded image - %v", file.Filename)
+	c.JSON(http.StatusCreated, gin.H{"message": fmt.Sprintf("Successfully uploaded - %v", file.Filename)})
 }
 
 // DELETE /api/admin/photos
