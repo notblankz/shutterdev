@@ -45,9 +45,9 @@ export default function DeleteSlotPage() {
     }
 
 
-    async function handleConfirmDelete() {
+    async function handleConfirmDelete(password) {
         setDeleting(true)
-        const toDeleteJSON = { DeleteIDs: Array.from(selected) }
+        const toDeleteJSON = { DeleteIDs: Array.from(selected), password: password }
 
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/photos`, {
             method: "DELETE",
@@ -60,7 +60,10 @@ export default function DeleteSlotPage() {
 
         if (!res.ok) {
             setDeleting(false)
-            throw new Error("Could not delete photos")
+            toast.error("Could Not Delete Photo", {
+                position: "top-right"
+            })
+            return
         }
 
         const data = await res.json()
@@ -74,7 +77,7 @@ export default function DeleteSlotPage() {
         setInvalidateDeleteSlot()
     }
 
-    async function handleConfirmDeleteAll() {
+    async function handleConfirmDeleteAll(password) {
         setDeleting(true)
 
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/photos/all`, {
@@ -83,11 +86,15 @@ export default function DeleteSlotPage() {
                 "Content-Type": "application/json",
             },
             credentials: "include",
+            body: JSON.stringify({ password: password })
         })
 
         if (!res.ok) {
             setDeleting(false)
-            throw new Error("Could not delete photos")
+            toast.error("Could Not Delete Photo", {
+                position: "top-right"
+            })
+            return
         }
 
         const data = await res.json()

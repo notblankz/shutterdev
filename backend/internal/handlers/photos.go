@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"shutterdev/backend/internal/database"
 	"shutterdev/backend/internal/models"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -30,6 +32,7 @@ type PhotoHandler struct {
 
 type DeleteRequest struct {
 	DeleteIDsArray []string `json:"DeleteIDs"`
+	Password       string   `json:"password"`
 }
 
 func NewPhotoHandler(db *sql.DB, r2 *services.R2Service) *PhotoHandler {
@@ -150,6 +153,13 @@ func (h *PhotoHandler) DeletePhotos(c *gin.Context) {
 		return
 	}
 
+	err := bcrypt.CompareHashAndPassword([]byte(os.Getenv("ADMIN_PASSWORD_HASH")), []byte(deleteRequest.Password))
+	if err != nil {
+		log.Println("[DELETE:ERROR]: Wrong Password Entered")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Wrong Password"})
+		return
+	}
+
 	if len(deleteRequest.DeleteIDsArray) == 0 {
 		log.Println("[DELETE:ERROR]: 0 Photos recieved to delete")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "0 Photos recieved to delete"})
@@ -171,6 +181,21 @@ func (h *PhotoHandler) DeletePhotos(c *gin.Context) {
 
 // DELETE /api/admin/photos/all
 func (h *PhotoHandler) DeleteAllPhotos(c *gin.Context) {
+
+	var deleteRequest DeleteRequest
+	if bindError := c.ShouldBindJSON(&deleteRequest); bindError != nil {
+		log.Printf("[ERROR]: Could not bind request.Body to internal struct - %v", bindError)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Could not bind request.Body to internal struct"})
+		return
+	}
+
+	err := bcrypt.CompareHashAndPassword([]byte(os.Getenv("ADMIN_PASSWORD_HASH")), []byte(deleteRequest.Password))
+	if err != nil {
+		log.Println("[DELETE:ERROR]: Wrong Password Entered")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Wrong Password"})
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 	toDeleteIds, err := database.GetAllPhotoIDs(h.DB, ctx)
@@ -184,6 +209,7 @@ func (h *PhotoHandler) DeleteAllPhotos(c *gin.Context) {
 	if err != nil {
 		log.Printf("[DELETE:ERROR] %v", err)
 		c.JSON(http.StatusInternalServerError, resp)
+		return
 	}
 
 	c.JSON(http.StatusOK, resp)
