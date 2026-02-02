@@ -3,9 +3,10 @@ package models
 import "time"
 
 type Exif struct {
-	ShutterSpeed string `json:"shutterSpeed"`
-	Aperture     string `json:"aperture"`
-	ISO          string `json:"iso"`
+	ShutterSpeed     string `json:"shutterSpeed"`
+	Aperture         string `json:"aperture"`
+	ISO              string `json:"iso"`
+	ImageOrientation int    `json:"imageOrientation"`
 }
 
 type Photo struct {

@@ -22,6 +22,8 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog"
+import ExifReader from "exifreader"
+import Resizer from "react-image-file-resizer"
 
 export default function AdminUploadSlot() {
     const [isUploading, setIsUploading] = useState(false)
@@ -30,6 +32,7 @@ export default function AdminUploadSlot() {
     const [progress, setProgress] = useState(0)
     const [totalImages, setTotalImages] = useState(0)
     const setInvalidateDeleteSlot = useAdminStore((state) => state.setInvalidateDeleteSlot)
+    const [failedImages, setFailedImages] = useState([])
 
     const CONCURRENCY_LIMIT = 4
 
@@ -77,9 +80,51 @@ export default function AdminUploadSlot() {
     }
 
     async function uploadSingleImage(file, tags) {
+
+        // testing
+        const buffer = await file.arrayBuffer()
+        const tagsExif = ExifReader.load(buffer)
+        console.log(`Finished Extracting EXIF For: ${file.name}`)
+        console.log(JSON.stringify({
+            shutterSpeed: tagsExif.ShutterSpeedValue?.description,
+            aperture: tagsExif.FNumber?.description,
+            iso: tagsExif.ISOSpeedRatings?.description.toString(),
+            imageOrientation: tagsExif.Orientation?.value
+        }))
+
+        function processImage(file) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const t0 = performance.now()
+                    Resizer.imageFileResizer(
+                        file,
+                        1440,
+                        1440,
+                        "WEBP",
+                        90,
+                        0,
+                        (uri) => {
+                            console.log(`Finished Resizing the image: ${file.name} took ${((performance.now() - t0)/1000).toFixed(2)}s`)
+                            resolve(uri)
+                        },
+                        "blob"
+                    )
+                } catch (err) {
+                    reject(err)
+                }
+            })
+        }
+
         const fd = new FormData()
-        fd.append("image", file)
+        const resizedFile = await processImage(file)
+        fd.append("image", resizedFile, file.name)
         fd.append("tags", tags)
+        fd.append("exif", JSON.stringify({
+            shutterSpeed: tagsExif.ShutterSpeedValue?.description,
+            aperture: tagsExif.FNumber?.description,
+            iso: tagsExif.ISOSpeedRatings?.description.toString(),
+            imageOrientation: tagsExif.Orientation?.value
+        }))
 
         const res = await fetch(
             `${process.env.NEXT_PUBLIC_API_URL}/api/admin/photos`, {
@@ -90,6 +135,7 @@ export default function AdminUploadSlot() {
         )
 
         if (!res.ok) {
+            setFailedImages(prev => [...prev, file.name])
             throw new Error("upload failed")
         }
     }
@@ -132,7 +178,7 @@ export default function AdminUploadSlot() {
         const end = performance.now()
 
         setResult({
-            message: `Upload finished. Success: ${successCount}, Failed: ${failCount}`,
+            message: `Upload finished. Success: ${successCount}, Failed: ${(failCount == 0) ? "0" : failedImages}`,
             time: `${((end - start) / 1000).toFixed(2)}s`,
         })
 

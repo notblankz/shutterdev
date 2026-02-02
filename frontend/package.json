@@ -30,6 +30,7 @@
         "pica": "^9.0.1",
         "react": "19.2.3",
         "react-dom": "19.2.3",
+        "react-image-file-resizer": "^0.4.8",
         "react-infinite-scroll-component": "^6.1.1",
         "react-infinite-scroll-hook": "^6.0.1",
         "react-responsive-masonry": "^2.7.1",

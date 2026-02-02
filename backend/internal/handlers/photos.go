@@ -112,6 +112,7 @@ func (h *PhotoHandler) GetPhotoByID(c *gin.Context) {
 // POST /api/admin/photos
 func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 
+	t0 := time.Now()
 	form, err := c.MultipartForm()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse multipart form"})
@@ -133,11 +134,12 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 	file := files[0]
 
 	if err := h.processSingleImage(c, file); err != nil {
+		log.Printf("[%v - FAILED] Could not process image due to an error - %v", file.Filename, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	log.Printf("Sucessfully uploaded image - %v", file.Filename)
+	log.Printf("[%v - SUCCESS] Took - [%v]", file.Filename, time.Since(t0))
 	c.JSON(http.StatusCreated, gin.H{"message": fmt.Sprintf("Successfully uploaded - %v", file.Filename)})
 }
 
@@ -344,6 +346,14 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 
 	const MaxUploadSize = 20 << 20
 
+	// Parse exif from multipart form data
+	var ReceivedExif models.Exif
+	exifStr := c.PostForm("exif")
+	if exifStr != "" {
+		json.Unmarshal([]byte(exifStr), &ReceivedExif)
+	}
+	log.Printf("[%v]: Received Following EXIF - %v", file.Filename, ReceivedExif)
+
 	imageData, err := file.Open()
 	if err != nil {
 		return fmt.Errorf("failed to open image")
@@ -377,7 +387,7 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 	tagsStr := c.PostForm("tags")
 	limitedReader := io.LimitReader(imageData, MaxUploadSize+1)
 
-	webImage, thumbImage, exifData, thumbWidth, thumbHeight, err := services.ProcessImage(limitedReader)
+	webImage, thumbImage, thumbWidth, thumbHeight, err := services.ProcessImage(limitedReader, ReceivedExif.ImageOrientation)
 	if err != nil {
 		return fmt.Errorf("image processing failed")
 	}
@@ -424,7 +434,7 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 		ThumbnailURL: thumbURL,
 		ThumbWidth:   thumbWidth,
 		ThumbHeight:  thumbHeight,
-		Exif:         exifData,
+		Exif:         ReceivedExif,
 		Tags:         tags,
 		CreatedAt:    time.Now(),
 	}
