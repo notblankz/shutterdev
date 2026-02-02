@@ -17,7 +17,6 @@ import (
 	"shutterdev/backend/internal/models"
 	"shutterdev/backend/internal/services"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -112,13 +111,16 @@ func (h *PhotoHandler) GetPhotoByID(c *gin.Context) {
 // POST /api/admin/photos
 func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 
+	t0 := time.Now()
 	form, err := c.MultipartForm()
 	if err != nil {
+		log.Printf("[ERROR] Could now parse multipart form - %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse multipart form"})
 		return
 	}
 	files := form.File["image"]
 	if len(files) == 0 {
+		log.Println("[FAILED] No image provided in the request")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "no image provided",
 		})
@@ -126,6 +128,7 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 	}
 
 	if len(files) > 1 {
+		log.Println("[FAILED] Only one image allowed per request")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "only one image allowed per request"})
 		return
 	}
@@ -133,11 +136,12 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 	file := files[0]
 
 	if err := h.processSingleImage(c, file); err != nil {
+		log.Printf("[%v - FAILED] Could not process image due to an error - %v", file.Filename, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	log.Printf("Sucessfully uploaded image - %v", file.Filename)
+	log.Printf("[%v - SUCCESS] Took - [%v]", file.Filename, time.Since(t0))
 	c.JSON(http.StatusCreated, gin.H{"message": fmt.Sprintf("Successfully uploaded - %v", file.Filename)})
 }
 
@@ -344,6 +348,14 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 
 	const MaxUploadSize = 20 << 20
 
+	// Parse exif from multipart form data
+	var ReceivedExif models.Exif
+	exifStr := c.PostForm("exif")
+	if exifStr != "" {
+		json.Unmarshal([]byte(exifStr), &ReceivedExif)
+	}
+	log.Printf("[%v]: Received Following EXIF - %v", file.Filename, ReceivedExif)
+
 	imageData, err := file.Open()
 	if err != nil {
 		return fmt.Errorf("failed to open image")
@@ -377,7 +389,7 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 	tagsStr := c.PostForm("tags")
 	limitedReader := io.LimitReader(imageData, MaxUploadSize+1)
 
-	webImage, thumbImage, exifData, thumbWidth, thumbHeight, err := services.ProcessImage(limitedReader)
+	webImage, thumbImage, thumbWidth, thumbHeight, err := services.ProcessImage(limitedReader, ReceivedExif.ImageOrientation)
 	if err != nil {
 		return fmt.Errorf("image processing failed")
 	}
@@ -386,30 +398,25 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 	defer cancel()
 
 	// variables
-	var errWebUpload error
 	var webURL string
-	var errThumbUpload error
 	var thumbURL string
 
-	var wg sync.WaitGroup
+	g, ctx := errgroup.WithContext(ctx)
 
-	wg.Go(func() {
+	g.Go(func() error {
 		webFileName := services.GenerateUniqueFileName("web")
-		webURL, errWebUpload = h.R2Service.UploadFile(ctx, webFileName, webImage)
+		webURL, err = h.R2Service.UploadFile(ctx, webFileName, webImage)
+		return err
 	})
 
-	wg.Go(func() {
+	g.Go(func() error {
 		thumbFileName := services.GenerateUniqueFileName("thumbnails")
-		thumbURL, errThumbUpload = h.R2Service.UploadFile(ctx, thumbFileName, thumbImage)
+		thumbURL, err = h.R2Service.UploadFile(ctx, thumbFileName, thumbImage)
+		return err
 	})
 
-	wg.Wait()
-
-	// Error handling
-	if errWebUpload != nil {
-		return fmt.Errorf("Could not upload web image to R2 Bucket")
-	} else if errThumbUpload != nil {
-		return fmt.Errorf("Could not upload thumbnail image to R2 Bucket")
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("upload failed: %w", err)
 	}
 
 	var tags []models.Tag
@@ -424,7 +431,7 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 		ThumbnailURL: thumbURL,
 		ThumbWidth:   thumbWidth,
 		ThumbHeight:  thumbHeight,
-		Exif:         exifData,
+		Exif:         ReceivedExif,
 		Tags:         tags,
 		CreatedAt:    time.Now(),
 	}
