@@ -17,7 +17,6 @@ import (
 	"shutterdev/backend/internal/models"
 	"shutterdev/backend/internal/services"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -399,30 +398,25 @@ func (h *PhotoHandler) processSingleImage(c *gin.Context, file *multipart.FileHe
 	defer cancel()
 
 	// variables
-	var errWebUpload error
 	var webURL string
-	var errThumbUpload error
 	var thumbURL string
 
-	var wg sync.WaitGroup
+	g, ctx := errgroup.WithContext(ctx)
 
-	wg.Go(func() {
+	g.Go(func() error {
 		webFileName := services.GenerateUniqueFileName("web")
-		webURL, errWebUpload = h.R2Service.UploadFile(ctx, webFileName, webImage)
+		webURL, err = h.R2Service.UploadFile(ctx, webFileName, webImage)
+		return err
 	})
 
-	wg.Go(func() {
+	g.Go(func() error {
 		thumbFileName := services.GenerateUniqueFileName("thumbnails")
-		thumbURL, errThumbUpload = h.R2Service.UploadFile(ctx, thumbFileName, thumbImage)
+		thumbURL, err = h.R2Service.UploadFile(ctx, thumbFileName, thumbImage)
+		return err
 	})
 
-	wg.Wait()
-
-	// Error handling
-	if errWebUpload != nil {
-		return fmt.Errorf("Could not upload web image to R2 Bucket")
-	} else if errThumbUpload != nil {
-		return fmt.Errorf("Could not upload thumbnail image to R2 Bucket")
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("upload failed: %w", err)
 	}
 
 	var tags []models.Tag
