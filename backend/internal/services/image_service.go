@@ -7,7 +7,6 @@ import (
 	"image"
 	"io"
 	"log"
-	"sync"
 
 	"github.com/HugoSmits86/nativewebp"
 	"github.com/disintegration/imaging"
@@ -38,8 +37,6 @@ func ProcessImage(file io.Reader, imageOrientation int) (webImage []byte, thumbI
 		return nil, nil, 0, 0, ErrImageTooLarge
 	}
 
-	var wg sync.WaitGroup
-
 	// again create a new Reader for Resizing from the bucket (ImageData)
 	resizeImageReader := bytes.NewReader(imageData)
 
@@ -52,11 +49,7 @@ func ProcessImage(file io.Reader, imageOrientation int) (webImage []byte, thumbI
 
 	rotatedImg := applyOrientation(img, imageOrientation)
 
-	wg.Go(func() {
-		thumbImage, thumbWidth, thumbHeight, errThumb = resizeToThumb(rotatedImg)
-	})
-
-	wg.Wait()
+	thumbImage, thumbWidth, thumbHeight, errThumb = resizeToThumb(rotatedImg)
 
 	if errThumb != nil {
 		log.Println("[ERROR]: Could not encode image.Image back to JPEG (for thumbImage)", errThumb)

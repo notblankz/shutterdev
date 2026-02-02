@@ -115,11 +115,13 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 	t0 := time.Now()
 	form, err := c.MultipartForm()
 	if err != nil {
+		log.Printf("[ERROR] Could now parse multipart form - %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse multipart form"})
 		return
 	}
 	files := form.File["image"]
 	if len(files) == 0 {
+		log.Println("[FAILED] No image provided in the request")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "no image provided",
 		})
@@ -127,6 +129,7 @@ func (h *PhotoHandler) UploadPhoto(c *gin.Context) {
 	}
 
 	if len(files) > 1 {
+		log.Println("[FAILED] Only one image allowed per request")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "only one image allowed per request"})
 		return
 	}
