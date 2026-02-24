@@ -25,12 +25,6 @@ This project allows an admin user to upload photos, automatically processes them
 ---
 
 ## Performance
-Test Environment:
-- Backed: Running on Old Laptop connected through cloudflare tunnel with 200Mbps internet speed
-- Frontend: Vercel
-- Tested with 20 batch of 15 images each round and got an average upload time of 0.914375s Per Image
-
-## Performance
 
 #### Test Environment
 
